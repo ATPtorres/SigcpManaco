@@ -1,0 +1,13 @@
+# Archivos locales y datos de trabajo
+.env
+.env.*
+!.env.example
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+respaldo-manaco-*.json
+recuperacion-manaco-*.txt
+
+# Imagen extraída del informe fuente, no necesaria para ejecutar la aplicación
+docs/informe-gantt.png
