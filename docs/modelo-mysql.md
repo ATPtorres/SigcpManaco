@@ -45,4 +45,4 @@ No se borran maestros con historial. El estado inactivo se utiliza para material
 
 Las cantidades aceptadas y rechazadas de cada etapa suman el plan de la orden. El sistema registra rechazo sin crear automáticamente reprocesos ni transferencias de inventario. Los costos directos son consumos valorizados más horas registradas; no representan una contabilidad industrial completa.
 
-Los registros locales del antiguo prototipo requieren una migración de datos separada: faltan lotes, ubicaciones, variantes y etapas históricas. La aplicación preserva el almacenamiento anterior y permite exportarlo desde su origen; no inventa esos antecedentes.
+La migración del prototipo está implementada con vista previa, confirmación y registro de procedencia. Se conserva el archivo original y no se inventan antecedentes de lotes, etapas o costos que no existían. Consulta [migracion-v1.md](migracion-v1.md). Las migraciones 002 y 003 añaden procedencia, indicadores de datos no medidos y permisos por perfil.

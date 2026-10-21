@@ -53,6 +53,7 @@ const server = http.createServer(createApp(pool));
       "workers",
       "budgets",
       "catalogs",
+      "users",
       "settings",
       "guide",
     ];
@@ -86,7 +87,7 @@ const server = http.createServer(createApp(pool));
       }
     }
     console.log(
-      "PASS 126 route/viewport combinations without page overflow; axe on 28 views",
+      "PASS 135 route/viewport combinations without page overflow; axe on 30 views",
     );
 
     await page.setViewportSize({ width: 390, height: 568 });
@@ -395,6 +396,152 @@ const server = http.createServer(createApp(pool));
     console.log(
       "PASS complete UI workflow: worker, material/lot, model, SKU/recipe, order, reservation, consumption, labor, incident resolution, quality, dispatch, budget and second session",
     );
+    // Real upload preview, import, replay and escaped legacy text.
+    const legacyMaterial = "MAT-" + stamp,
+      legacyProduct = "PRD-" + stamp,
+      legacyOrder = "OP-" + stamp;
+    const legacyData = {
+      version: 1,
+      mode: "own",
+      materials: [
+        {
+          id: legacyMaterial,
+          name: "Material <img src=x onerror=alert(1)> UI",
+          unit: "m²",
+          stock: 25,
+          min: 2,
+        },
+      ],
+      products: [
+        {
+          id: legacyProduct,
+          name: "Modelo migrado UI",
+          category: "Formal",
+          sizes: "40",
+          color: "Negro",
+          description: "Importación de prueba",
+          tone: "#263344",
+          bom: [{ material: legacyMaterial, qty: 0.2 }],
+        },
+      ],
+      orders: [
+        {
+          id: legacyOrder,
+          product: legacyProduct,
+          quantity: 3,
+          state: 0,
+          due: "2026-10-28",
+          priority: "Normal",
+          owner: "Responsable de respaldo UI",
+          size: "40",
+          start: "2026-10-21",
+          created: "2026-10-21",
+          closed: "",
+          evidence: "",
+          consumed: false,
+          history: [],
+        },
+      ],
+      incidents: [],
+      audit: [],
+      movements: [],
+      pilot: {},
+    };
+    await go("settings");
+    const upload = {
+      name: "respaldo-v1.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(legacyData)),
+    };
+    await page.locator("#legacy-file").setInputFiles(upload);
+    await page.locator('[data-action="confirm-legacy"]').waitFor();
+    const beforeImport = await read();
+    await page.locator('[data-action="confirm-legacy"]').click();
+    await page.locator("dialog").waitFor({ state: "hidden" });
+    const imported = await read();
+    assert.equal(imported.orders.length, beforeImport.orders.length + 1);
+    assert.equal(
+      imported.materials.find((m) => m.codigo === legacyMaterial).stock,
+      25,
+    );
+    await page.locator("#legacy-file").setInputFiles(upload);
+    await page
+      .getByText("Este archivo ya fue migrado. No se duplicarán registros.")
+      .waitFor();
+    assert.equal(
+      await page.locator('[data-action="confirm-legacy"]').count(),
+      0,
+    );
+    await page.keyboard.press("Escape");
+    await go("materials");
+    await page
+      .getByText("Material <img src=x onerror=alert(1)> UI", { exact: true })
+      .waitFor();
+    assert.equal(await page.locator("#main img").count(), 0);
+    console.log(
+      "PASS legacy file preview/import/replay, original balances and escaped text",
+    );
+
+    // Administrators manage real accounts; a changed profile revokes the old session.
+    const accountPassword = require("node:crypto")
+      .randomBytes(24)
+      .toString("base64url");
+    await go("users");
+    await page.locator('[data-action="new-user"]').click();
+    await fill("nombre", "cuenta-ui-" + stamp);
+    await choose("rol", "Consulta");
+    await fill("password", accountPassword);
+    await save();
+    const accountContext = await browser.newContext();
+    const accountPage = await accountContext.newPage();
+    await accountPage.goto(origin);
+    await accountPage.locator("#login-form").waitFor();
+    await accountPage.locator("[name=username]").fill("cuenta-ui-" + stamp);
+    await accountPage.locator("[name=password]").fill(accountPassword);
+    await accountPage.locator("#login-form button").click();
+    await accountPage.waitForFunction(
+      () => !document.body.classList.contains("signed-out"),
+    );
+    assert.equal(
+      await accountPage.locator('[data-action="new-order"]').isVisible(),
+      false,
+    );
+    assert.equal(
+      (
+        await accountContext.request.post(origin + "/api/orders", { data: {} })
+      ).status(),
+      403,
+    );
+    state = await read();
+    const account = state.users.find((u) => u.nombre === "cuenta-ui-" + stamp);
+    await page
+      .locator(`[data-action="edit-user"][data-id="${account.usuario_id}"]`)
+      .click();
+    await choose("rol", "Operador");
+    await save();
+    await accountPage.locator("#refresh-data").click();
+    await accountPage.locator("#login-form").waitFor();
+    await accountPage.locator("[name=username]").fill("cuenta-ui-" + stamp);
+    await accountPage.locator("[name=password]").fill(accountPassword);
+    await accountPage.locator("#login-form button").click();
+    await accountPage.waitForFunction(
+      () => !document.body.classList.contains("signed-out"),
+    );
+    assert.equal(
+      await accountPage.locator('[data-action="new-order"]').isVisible(),
+      true,
+    );
+    assert.equal(
+      (
+        await accountContext.request.post(origin + "/api/users", { data: {} })
+      ).status(),
+      403,
+    );
+    await accountContext.close();
+    console.log(
+      "PASS user creation, read-only UI/API, role changes, session revocation and operator access",
+    );
+
     assert.deepEqual(errors, []);
     console.log("PASS four forms at 320px and no JavaScript errors");
   } finally {

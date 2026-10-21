@@ -52,6 +52,7 @@ const routes = {
   workers: ["Trabajadores", "book"],
   budgets: ["Presupuestos", "chart"],
   catalogs: ["Catálogos", "settings"],
+  users: ["Usuarios y permisos", "shield"],
   settings: ["Datos y respaldo", "settings"],
   guide: ["Guía de uso", "book"],
 };
@@ -205,7 +206,11 @@ function render() {
       : "DATOS COMPARTIDOS · MYSQL");
   $(".local-status").innerHTML = "<i></i> MySQL";
   $("#navigation").innerHTML = Object.entries(routes)
-    .filter(([key]) => key !== "guide")
+    .filter(
+      ([key]) =>
+        key !== "guide" &&
+        (key !== "users" || currentUser?.role === "Administrador"),
+    )
     .map(
       ([key, [label, ico]]) =>
         `<a href="#${key}" class="${route === key ? "active " : ""}${key === "project" ? "nav-separator" : ""}" ${route === key ? 'aria-current="page"' : ""}>${icon(ico)}${label}${key === "incidents" && openIncidents().length ? `<span class="nav-count">${openIncidents().length}</span>` : ""}</a>`,
@@ -224,18 +229,22 @@ function render() {
     workers: workersView,
     budgets: budgetsView,
     catalogs: catalogsView,
+    users: usersView,
     settings: settingsView,
     guide: guideView,
   }[route]();
   $("#main").classList.remove("view-enter");
   void $("#main").offsetWidth;
   $("#main").classList.add("view-enter");
+  applyPermissions($("#main"));
 }
 function dashboard() {
   const active = db.orders.filter((o) => o.state < 3),
     done = db.orders.filter((o) => o.state >= 3),
     total = db.orders.reduce((a, o) => a + o.quantity, 0),
-    finished = done.reduce((a, o) => a + o.acceptedPairs, 0);
+    finished = done.reduce((a, o) => a + o.acceptedPairs, 0),
+    unmeasured = done.filter((o) => !o.acceptedKnown),
+    closedPlan = done.reduce((sum, o) => sum + o.quantity, 0);
   return (
     heading(
       "Vista general",
@@ -244,23 +253,21 @@ function dashboard() {
         button("Nueva orden", "new-order"),
     ) +
     `<section class="overview-banner"><div><div class="eyebrow">GESTIÓN INDUSTRIAL DE CALZADO</div><h2>El pulso de tu producción.</h2><p>Supervisa órdenes, anticipa faltantes y mantén el trabajo en movimiento.</p></div><div class="banner-side"><div class="banner-date"><span>COCHABAMBA, BOLIVIA</span><strong>${date(today())}</strong></div><svg class="factory-art" viewBox="0 0 120 90" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4 78h111M13 75V37l25 13V30l27 16V13h12l6 62M13 75h94V39L83 50M65 13h12M65 20h13M23 59h8v9h-8zM43 59h8v9h-8zM64 59h8v9h-8zM89 59h8v9h-8zM17 85h90"/><path d="M69 7V3m8 3 3-3"/></svg></div></section>` +
-    `<section class="kpis" aria-label="Indicadores de producción">${kpi("Órdenes activas", num(active.length), "órdenes", `<b>${db.orders.filter((o) => o.state === 1).length} en producción</b> · ${db.orders.filter((o) => o.state === 0).length} pendientes`, "orders")}${kpi("Producción finalizada", num(finished), "pares", `${num(total)} pares planificados en total`, "box")}${kpi("Avance del plan", total ? Math.round((finished / total) * 100) + "%" : "—", "", `${done.length} de ${db.orders.length} órdenes terminadas`, "chart")}${kpi("Requieren atención", lowStock().length + openIncidents().length, "alertas", `<b>${lowStock().length} materiales bajo mínimo</b> · ${openIncidents().length} incidencias`, "alert", true)}</section>` +
-    `<div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Producción por modelo</h2><p class="panel-subtitle">Volumen planificado y finalizado · pares</p></div><div class="chart-legend"><span><i class="key"></i>Planificado</span><span><i class="key red"></i>Finalizado</span></div></div>${productionChart()}<div class="chart-bottom"><span>${db.mode === "demo" ? "Datos de demostración" : "Datos compartidos"} · Todas las órdenes</span><a class="text-link" href="#reports">Ver análisis ${icon("arrow")}</a></div></section><section class="panel"><div class="panel-head"><div><h2>Centro de atención</h2><p class="panel-subtitle">Lo que necesita una decisión</p></div><span class="tag danger">${lowStock().length + openIncidents().length} alertas</span></div><div class="alert-list">${alertsHTML()}</div><div class="panel-foot"><span>Anticiparse también es producir.</span><a class="text-link" href="#incidents">Ver incidencias →</a></div></section></div>` +
+    `<section class="kpis" aria-label="Indicadores de producción">${kpi("Órdenes activas", num(active.length), "órdenes", `<b>${db.orders.filter((o) => o.state === 1).length} en producción</b> · ${db.orders.filter((o) => o.state === 0).length} pendientes`, "orders")}${kpi("Pares conformes medidos", unmeasured.length === done.length && done.length ? "Sin dato" : num(finished), "pares", unmeasured.length ? `${unmeasured.length} cierres heredados sin conteo de calidad` : `${num(total)} pares planificados en total`, "box")}${kpi("Plan cerrado", total ? Math.round((closedPlan / total) * 100) + "%" : "—", "", `${done.length} de ${db.orders.length} órdenes terminadas`, "chart")}${kpi("Requieren atención", lowStock().length + openIncidents().length, "alertas", `<b>${lowStock().length} materiales bajo mínimo</b> · ${openIncidents().length} incidencias`, "alert", true)}</section>` +
+    `<div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Producción por modelo</h2><p class="panel-subtitle">Plan y pares conformes medidos</p></div><div class="chart-legend"><span><i class="key"></i>Planificado</span><span><i class="key red"></i>Conformes</span></div></div>${productionChart()}<div class="chart-bottom"><span>${db.mode === "demo" ? "Datos de demostración" : "Datos compartidos"} · Todas las órdenes</span><a class="text-link" href="#reports">Ver análisis ${icon("arrow")}</a></div></section><section class="panel"><div class="panel-head"><div><h2>Centro de atención</h2><p class="panel-subtitle">Lo que necesita una decisión</p></div><span class="tag danger">${lowStock().length + openIncidents().length} alertas</span></div><div class="alert-list">${alertsHTML()}</div><div class="panel-foot"><span>Anticiparse también es producir.</span><a class="text-link" href="#incidents">Ver incidencias →</a></div></section></div>` +
     `<section class="panel"><div class="panel-head table-heading"><div><h2>Órdenes de producción</h2><p class="panel-subtitle">Seguimiento de los lotes más recientes</p></div><a class="text-link" href="#orders">Ver todas las órdenes →</a></div>${orderTable([...db.orders].reverse().slice(0, 5))}</section>`
   );
 }
 function productionChart() {
-  const rows = db.products
-    .slice(0, 6)
-    .map((p) => ({
-      name: p.name.split(" ")[0],
-      plan: db.orders
-        .filter((o) => o.product === p.id)
-        .reduce((a, o) => a + o.quantity, 0),
-      done: db.orders
-        .filter((o) => o.product === p.id && o.state >= 3)
-        .reduce((a, o) => a + o.acceptedPairs, 0),
-    }));
+  const rows = db.products.slice(0, 6).map((p) => ({
+    name: p.name.split(" ")[0],
+    plan: db.orders
+      .filter((o) => o.product === p.id)
+      .reduce((a, o) => a + o.quantity, 0),
+    done: db.orders
+      .filter((o) => o.product === p.id && o.state >= 3)
+      .reduce((a, o) => a + o.acceptedPairs, 0),
+  }));
   const max = Math.max(100, ...rows.map((r) => r.plan));
   return `<div class="chart" role="img" aria-label="${esc(rows.map((r) => r.name + ": " + r.plan + " planificados, " + r.done + " finalizados").join(". "))}"><div class="axis"><span>${num(max)}</span><span>${num(Math.round((max * 2) / 3))}</span><span>${num(Math.round(max / 3))}</span><span>0</span></div><div class="bar-area">${rows.map((r) => `<div class="bar-column" title="${esc(r.name)}: ${r.plan} planificados / ${r.done} finalizados"><div class="bar" style="--height:${(r.plan / max) * 100}%"></div><div class="bar actual" style="--height:${(r.done / max) * 100}%"></div><span class="bar-label">${esc(r.name)}</span></div>`).join("")}</div></div>`;
 }
@@ -289,7 +296,7 @@ function alertsHTML() {
     : '<div class="empty">Sin alertas pendientes.</div>';
 }
 function orderTable(orders) {
-  return `<div class="table-wrap" tabindex="0"><table><thead><tr><th>ORDEN / PRODUCTO</th><th>CANTIDAD</th><th>ESTADO</th><th>AVANCE</th><th>ENTREGA</th><th>PRIORIDAD</th><th scope="col">Acciones</th></tr></thead><tbody>${orders.map((o) => `<tr><td><button class="order-id" data-action="detail" data-id="${o.id}">${o.id}</button><small>${esc(product(o.product)?.name)} · T${esc(o.size)}</small></td><td><strong>${num(o.quantity)}</strong> pares</td><td>${badge(o.state)}</td><td><span class="progress"><span style="width:${o.state * 25}%"></span></span><span class="progress-num">${o.state * 25}%</span></td><td>${date(o.due)}${o.due < today() && o.state < 3 ? '<small style="color:var(--red)">Entrega vencida</small>' : ""}</td><td>${priority(o.priority)}</td><td><button class="icon-button" data-action="detail" data-id="${o.id}" aria-label="Ver ${o.id}">${icon("arrow")}</button></td></tr>`).join("") || '<tr><td colspan="7"><div class="empty">No hay órdenes para esta búsqueda.</div></td></tr>'}</tbody></table></div>`;
+  return `<div class="table-wrap" tabindex="0"><table><thead><tr><th>ORDEN / PRODUCTO</th><th>CANTIDAD</th><th>ESTADO</th><th>AVANCE</th><th>ENTREGA</th><th>PRIORIDAD</th><th scope="col">Acciones</th></tr></thead><tbody>${orders.map((o) => `<tr><td><button class="order-id" data-action="detail" data-id="${o.id}">${esc(o.numero_orden)}</button><small>${esc(product(o.product)?.name)} · T${esc(o.size)}</small></td><td><strong>${num(o.quantity)}</strong> pares</td><td>${badge(o.state)}</td><td><span class="progress"><span style="width:${o.state * 25}%"></span></span><span class="progress-num">${o.state * 25}%</span></td><td>${date(o.due)}${o.due < today() && o.state < 3 ? '<small style="color:var(--red)">Entrega vencida</small>' : ""}</td><td>${priority(o.priority)}</td><td><button class="icon-button" data-action="detail" data-id="${o.id}" aria-label="Ver ${esc(o.numero_orden)}">${icon("arrow")}</button></td></tr>`).join("") || '<tr><td colspan="7"><div class="empty">No hay órdenes para esta búsqueda.</div></td></tr>'}</tbody></table></div>`;
 }
 function toolbar(placeholder, options = []) {
   return `<div class="toolbar"><label class="search-box">${icon("search")}<input id="search" type="search" value="${esc(query)}" placeholder="${placeholder}" aria-label="${placeholder}"></label><div class="filters">${options.length ? `<select id="status-filter" aria-label="Filtrar registros"><option value="">Todos los registros</option>${options.map((v, i) => `<option value="${esc(v)}" ${statusFilter === v ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>` : ""}<span class="result-count" id="result-count"></span></div></div>`;
@@ -299,7 +306,13 @@ const matches = (...values) =>
 function filteredOrders() {
   return db.orders.filter(
     (o) =>
-      matches(o.id, product(o.product)?.name, o.owner, o.size) &&
+      matches(
+        o.id,
+        o.numero_orden,
+        product(o.product)?.name,
+        o.owner,
+        o.size,
+      ) &&
       (!statusFilter || states[o.state] === statusFilter),
   );
 }
@@ -333,7 +346,7 @@ function trackingView() {
               .filter((o) => o.state === index)
               .map(
                 (o) =>
-                  `<article class="kanban-card"><div class="kanban-meta"><button class="order-id" data-action="detail" data-id="${o.id}">${o.id}</button>${priority(o.priority)}</div><h3>${esc(product(o.product)?.name)}</h3><p>${num(o.quantity)} pares · Talla ${esc(o.size)}</p><div class="kanban-meta"><span>${esc(o.owner)}</span><span>${date(o.due)}</span></div><button class="btn small" data-action="detail" data-id="${o.id}">Ver orden ${icon("arrow")}</button></article>`,
+                  `<article class="kanban-card"><div class="kanban-meta"><button class="order-id" data-action="detail" data-id="${o.id}">${esc(o.numero_orden)}</button>${priority(o.priority)}</div><h3>${esc(product(o.product)?.name)}</h3><p>${num(o.quantity)} pares · Talla ${esc(o.size)}</p><div class="kanban-meta"><span>${esc(o.owner)}</span><span>${date(o.due)}</span></div><button class="btn small" data-action="detail" data-id="${o.id}">Ver orden ${icon("arrow")}</button></article>`,
               )
               .join("") || '<div class="empty">Sin órdenes</div>'
           }</section>`,
@@ -354,7 +367,7 @@ function productCards() {
     list
       .map(
         (p) =>
-          `<article class="product-card"><div class="product-art"><span class="product-code">${p.id} / COLECCIÓN MANACO</span>${shoe(p.tone)}</div><div class="product-body"><span class="eyebrow">${esc(p.category)} / ${esc(p.color)}</span><h2>${esc(p.name)}</h2><p>${esc(p.description)}</p><p>Tallas ${esc(p.sizes)}<br>${p.bom.length} materiales en la receta</p><div class="product-footer"><span class="result-count">${db.orders.filter((o) => o.product === p.id).length} órdenes registradas</span><button class="text-link" data-action="edit-product" data-id="${p.id}">Editar / versionar →</button><button class="text-link" data-action="ficha-detail" data-id="${p.id}">Ver fichas</button></div></div></article>`,
+          `<article class="product-card"><div class="product-art"><span class="product-code">${esc(p.sku)} / COLECCIÓN MANACO</span>${shoe(p.tone)}</div><div class="product-body"><span class="eyebrow">${esc(p.category)} / ${esc(p.color)}</span><h2>${esc(p.name)}</h2><p>${esc(p.description)}</p><p>Tallas ${esc(p.sizes)}<br>${p.bom.length} materiales en la receta</p><div class="product-footer"><span class="result-count">${db.orders.filter((o) => o.product === p.id).length} órdenes registradas</span><button class="text-link" data-action="edit-product" data-id="${p.id}">Editar / versionar →</button><button class="text-link" data-action="ficha-detail" data-id="${p.id}">Ver fichas</button></div></div></article>`,
       )
       .join("") || '<div class="empty">No se encontraron productos.</div>'
   );
@@ -379,11 +392,11 @@ function productsView() {
 function materialsTable() {
   const list = db.materials.filter(
     (m) =>
-      matches(m.id, m.name) &&
+      matches(m.id, m.codigo, m.name) &&
       (!statusFilter ||
         (statusFilter === "Bajo mínimo" ? m.stock <= m.min : m.stock > m.min)),
   );
-  return `<div class="table-wrap" tabindex="0"><table><thead><tr><th>MATERIAL</th><th>EXISTENCIAS</th><th>NIVEL MÍNIMO</th><th>UNIDAD</th><th>DISPONIBILIDAD</th><th>ACCIONES</th></tr></thead><tbody>${list.map((m) => `<tr><td><strong>${esc(m.name)}</strong><small>${m.id}</small></td><td>${num(m.stock)}<div class="stock-track ${m.stock <= m.min ? "low" : ""}"><span style="width:${Math.min(100, (m.stock / Math.max(1, m.min * 3)) * 100)}%"></span></div></td><td>${num(m.min)}</td><td>${esc(m.unit)}</td><td><span class="tag ${m.stock <= m.min ? "danger" : "s3"}">${m.stock <= m.min ? "Bajo mínimo" : "Disponible"}</span></td><td><div class="row-actions"><button class="btn small" data-action="stock" data-id="${m.id}">Movimiento</button><button class="icon-button" data-action="edit-material" data-id="${m.id}" aria-label="Editar ${esc(m.name)}">${icon("edit")}</button></div></td></tr>`).join("") || '<tr><td colspan="6"><div class="empty">No hay materiales para esta búsqueda.</div></td></tr>'}</tbody></table></div>`;
+  return `<div class="table-wrap" tabindex="0"><table><thead><tr><th>MATERIAL</th><th>EXISTENCIAS</th><th>NIVEL MÍNIMO</th><th>UNIDAD</th><th>DISPONIBILIDAD</th><th>ACCIONES</th></tr></thead><tbody>${list.map((m) => `<tr><td><strong>${esc(m.name)}</strong><small>${esc(m.codigo)}</small></td><td>${num(m.stock)}<div class="stock-track ${m.stock <= m.min ? "low" : ""}"><span style="width:${Math.min(100, (m.stock / Math.max(1, m.min * 3)) * 100)}%"></span></div></td><td>${num(m.min)}</td><td>${esc(m.unit)}</td><td><span class="tag ${m.stock <= m.min ? "danger" : "s3"}">${m.stock <= m.min ? "Bajo mínimo" : "Disponible"}</span></td><td><div class="row-actions"><button class="btn small" data-action="stock" data-id="${m.id}">Movimiento</button><button class="icon-button" data-action="edit-material" data-id="${m.id}" aria-label="Editar ${esc(m.name)}">${icon("edit")}</button></div></td></tr>`).join("") || '<tr><td colspan="6"><div class="empty">No hay materiales para esta búsqueda.</div></td></tr>'}</tbody></table></div>`;
 }
 function materialsView() {
   return (
@@ -411,10 +424,18 @@ function materialsView() {
 function incidentsTable() {
   const list = db.incidents.filter(
     (i) =>
-      matches(i.id, i.order, i.type, i.description, i.owner) &&
+      matches(
+        i.id,
+        i.codigo,
+        i.order,
+        i.numero_orden,
+        i.type,
+        i.description,
+        i.owner,
+      ) &&
       (!statusFilter || i.status === statusFilter),
   );
-  return `<div class="table-wrap" tabindex="0"><table><thead><tr><th>INCIDENCIA / ORDEN</th><th>TIPO Y DESCRIPCIÓN</th><th>SEVERIDAD</th><th>RESPONSABLE</th><th>ESTADO</th><th scope="col">Acciones</th></tr></thead><tbody>${list.map((i) => `<tr><td><strong>${i.id}</strong><small>${i.order}</small></td><td><strong>${esc(i.type)}</strong><small style="white-space:normal;max-width:300px;line-height:1.6">${esc(i.description)}</small></td><td>${priority(i.severity)}</td><td>${esc(i.owner)}</td><td><span class="tag ${i.status === "Resuelta" ? "s3" : "danger"}">${esc(i.status)}</span></td><td><button class="btn small" data-action="edit-incident" data-id="${i.id}">Gestionar →</button></td></tr>`).join("") || '<tr><td colspan="6"><div class="empty">No hay incidencias para esta búsqueda.</div></td></tr>'}</tbody></table></div>`;
+  return `<div class="table-wrap" tabindex="0"><table><thead><tr><th>INCIDENCIA / ORDEN</th><th>TIPO Y DESCRIPCIÓN</th><th>SEVERIDAD</th><th>RESPONSABLE</th><th>ESTADO</th><th scope="col">Acciones</th></tr></thead><tbody>${list.map((i) => `<tr><td><strong>${esc(i.codigo)}</strong><small>${esc(i.numero_orden)}</small></td><td><strong>${esc(i.type)}</strong><small style="white-space:normal;max-width:300px;line-height:1.6">${esc(i.description)}</small></td><td>${priority(i.severity)}</td><td>${esc(i.owner)}</td><td><span class="tag ${i.status === "Resuelta" ? "s3" : "danger"}">${esc(i.status)}</span></td><td><button class="btn small" data-action="edit-incident" data-id="${i.id}">Gestionar →</button></td></tr>`).join("") || '<tr><td colspan="6"><div class="empty">No hay incidencias para esta búsqueda.</div></td></tr>'}</tbody></table></div>`;
 }
 function incidentsView() {
   return (
@@ -523,7 +544,7 @@ function projectView() {
 function settingsView() {
   return (
     heading("Datos y respaldo", "Información compartida almacenada en MySQL.") +
-    `<div class="note">Las operaciones se validan en el servidor y se guardan en una base de datos común. Usa Actualizar para consultar cambios de otras sesiones. Los datos del antiguo navegador no se importan ni se borran automáticamente.</div><div class="guide-grid"><article class="guide-card"><h2>Exportar datos de negocio</h2><p>Descarga las tablas de fabricación, inventario, costos, historial y piloto. El archivo no incluye contraseñas ni sesiones.</p>${button("Descargar exportación", "backup", "down", "navy")}</article><article class="guide-card"><h2>Respaldo y restauración MySQL</h2><p>Para un respaldo completo y una restauración controlada, utiliza las herramientas de MySQL con el procedimiento del administrador. La interfaz no permite borrar ni sustituir toda la base.</p>${button("Exportar datos del navegador anterior", "legacy-export", "down", "")}</article></div><section class="panel section-gap"><div class="panel-head"><h2>Bitácora del servidor</h2></div><div class="activity">${db.audit.map((a) => `<div class="activity-item">${esc(a.text)}<small>${date(a.at)} · ${esc(a.actor)}</small></div>`).join("") || "<p>Sin operaciones registradas.</p>"}</div></section>`
+    `<div class="note">Las operaciones se validan en el servidor y se guardan en una base de datos común. Usa Actualizar para consultar cambios de otras sesiones. Los datos del antiguo navegador no se importan ni se borran automáticamente.</div><div class="guide-grid"><article class="guide-card"><h2>Exportar datos de negocio</h2><p>Descarga las tablas de fabricación, inventario, costos, historial y piloto. El archivo no incluye contraseñas ni sesiones.</p>${button("Descargar exportación", "backup", "down", "navy")}</article><article class="guide-card"><h2>Respaldo y restauración MySQL</h2><p>Para un respaldo completo y una restauración controlada, utiliza las herramientas de MySQL con el procedimiento del administrador. La interfaz no permite borrar ni sustituir toda la base.</p>${button("Exportar datos del navegador anterior", "legacy-export", "down", "")}</article><article class="guide-card"><h2>Migrar respaldo anterior</h2><p>Selecciona un JSON del prototipo. Revisarás las cantidades y advertencias antes de añadirlo; no se borran datos existentes.</p><label class="field">Archivo del prototipo<input id="legacy-file" type="file" accept="application/json,.json"></label></article></div><section class="panel section-gap"><div class="panel-head"><h2>Migraciones realizadas</h2></div><div class="activity">${(db.imports || []).map((i) => `<div class="activity-item">${esc(i.etiqueta)}<small>${date(i.fecha_hora)} · ${esc(i.actor)} · ${i.resumen.orders} órdenes</small></div>`).join("") || "<p>Sin importaciones.</p>"}</div></section><section class="panel section-gap"><div class="panel-head"><h2>Bitácora del servidor</h2></div><div class="activity">${db.audit.map((a) => `<div class="activity-item">${esc(a.text)}<small>${date(a.at)} · ${esc(a.actor)}</small></div>`).join("") || "<p>Sin operaciones registradas.</p>"}</div></section>`
   );
 }
 function guideView() {
@@ -577,6 +598,7 @@ function showModal(title, html) {
   $("#modal-title").textContent = title;
   $("#modal-content").innerHTML = html;
   $("#modal").showModal();
+  applyPermissions($("#modal"));
 }
 function closeModal() {
   $("#modal").close();
@@ -715,7 +737,7 @@ function detail(id) {
   if (!o) return;
   showModal(
     "Orden " + o.numero_orden,
-    `<div class="row-actions">${badge(o.state)}${priority(o.priority)}</div><div class="detail-grid"><div><small>Producto</small><strong>${esc(product(o.product)?.name)}</strong></div><div><small>Planificado</small><strong>${num(o.quantity)} pares</strong></div><div><small>Responsable</small><strong>${esc(o.owner)}</strong></div><div><small>Ficha / fechas</small><strong>#${o.ficha_id} · ${date(o.start)} → ${date(o.due)}</strong></div></div><h3>Etapas de fabricación</h3><div class="activity">${o.etapas.map((e) => `<div class="activity-item"><strong>${e.secuencia}. ${esc(e.nombre)}</strong><p>${esc(e.estado)} · Aceptados: ${num(e.cantidad_aceptada)} · Rechazados: ${num(e.cantidad_rechazada)}</p><div class="row-actions">${["Pendiente", "En producción"].includes(e.estado) && o.state < 3 ? `<button class="text-link" data-action="stage-incident" data-id="${e.detalle_etapa_id}">Registrar incidencia</button>` : ""}</div>${e.estado === "Pendiente" && o.state === 1 ? `<button class="btn small" data-action="start-stage" data-id="${e.detalle_etapa_id}">Iniciar ${esc(e.nombre)}</button>` : ""}${e.estado === "En producción" ? `<button class="btn small" data-action="finish-stage" data-id="${e.detalle_etapa_id}">Terminar ${esc(e.nombre)}</button>` : ""}</div>`).join("")}</div>${o.evidence ? `<div class="note">Evidencia de calidad: ${esc(o.evidence)}</div>` : ""}<h3>Trazabilidad</h3><div class="activity">${o.history.map((h) => `<div class="activity-item">${esc(h.text)}<small>${date(h.at)} · ${esc(h.actor)}</small></div>`).join("")}</div><div class="form-footer">${o.state < 4 ? `<button class="btn primary" data-action="advance" data-id="${o.id}">${["Iniciar producción", "Enviar a calidad", "Terminar orden", "Registrar despacho"][o.state]}</button>` : ""}</div>`,
+    `<div class="row-actions">${badge(o.state)}${priority(o.priority)}</div><div class="detail-grid"><div><small>Producto</small><strong>${esc(product(o.product)?.name)}</strong></div><div><small>Planificado</small><strong>${num(o.quantity)} pares</strong></div><div><small>Responsable</small><strong>${esc(o.owner)}</strong></div><div><small>Ficha / fechas</small><strong>#${o.ficha_id} · ${date(o.start)} → ${date(o.due)}</strong></div></div>${o.origen_datos === "Migrado" ? '<div class="note">Orden heredada: los consumos anteriores ya están reflejados en el saldo. Las horas de inicio y el desglose histórico por etapas no fueron registrados.</div>' : ""}<h3>Etapas de fabricación</h3><div class="activity">${o.etapas.map((e) => `<div class="activity-item"><strong>${e.secuencia}. ${esc(e.nombre)}</strong><p>${esc(e.estado)} · ${e.conteo_confirmado ? `Aceptados: ${num(e.cantidad_aceptada)} · Rechazados: ${num(e.cantidad_rechazada)}` : "Conteo histórico: no medido"}</p><div class="row-actions">${["Pendiente", "En producción"].includes(e.estado) && o.state < 3 ? `<button class="text-link" data-action="stage-incident" data-id="${e.detalle_etapa_id}">Registrar incidencia</button>` : ""}</div>${e.estado === "Pendiente" && o.state === 1 ? `<button class="btn small" data-action="start-stage" data-id="${e.detalle_etapa_id}">Iniciar ${esc(e.nombre)}</button>` : ""}${e.estado === "En producción" ? `<button class="btn small" data-action="finish-stage" data-id="${e.detalle_etapa_id}">Terminar ${esc(e.nombre)}</button>` : ""}</div>`).join("")}</div>${o.evidence ? `<div class="note">Evidencia de calidad: ${esc(o.evidence)}</div>` : ""}<h3>Trazabilidad</h3><div class="activity">${o.history.map((h) => `<div class="activity-item">${esc(h.text)}<small>${date(h.at)} · ${esc(h.actor)}</small></div>`).join("")}</div><div class="form-footer">${o.state < 4 ? `<button class="btn primary" data-action="advance" data-id="${o.id}">${["Iniciar producción", "Enviar a calidad", "Terminar orden", "Registrar despacho"][o.state]}</button>` : ""}</div>`,
   );
 }
 async function advance(id) {
@@ -725,14 +747,39 @@ async function advance(id) {
     showModal(
       "Aprobación de calidad",
       formHTML(
-        textarea("Evidencia de aprobación", "evidencia"),
+        textarea("Evidencia de aprobación", "evidencia") +
+          (!o.acceptedKnown
+            ? field(
+                "Pares aceptados observados",
+                "cantidad_aceptada",
+                "",
+                "number",
+                'min="0" required',
+              ) +
+              field(
+                "Pares rechazados observados",
+                "cantidad_rechazada",
+                "",
+                "number",
+                'min="0" required',
+              )
+            : ""),
         "Aprobar y terminar",
       ),
     );
     bindForm((d) =>
       command(
         `/api/orders/${id}/advance`,
-        { estado_esperado: states[o.state], evidencia: d.evidencia },
+        {
+          estado_esperado: states[o.state],
+          evidencia: d.evidencia,
+          ...(!o.acceptedKnown
+            ? {
+                cantidad_aceptada: Number(d.cantidad_aceptada),
+                cantidad_rechazada: Number(d.cantidad_rechazada),
+              }
+            : {}),
+        },
         "Orden terminada.",
       ),
     );
@@ -1210,7 +1257,7 @@ function workersView() {
         esc(w.codigo),
         esc(w.nombre_completo),
         esc(w.tipo_contratacion),
-        num(w.tarifa_hora_actual),
+        w.tarifa_confirmada ? num(w.tarifa_hora_actual) : "Por confirmar",
         esc(
           w.etapas
             .map((id) => db.refs.stages.find((e) => e.etapa_id === id)?.nombre)
@@ -1435,7 +1482,9 @@ function budgetsView() {
         esc(db.orders.find((o) => o.orden_id === c.orden_id)?.numero_orden),
         num(c.materiales),
         num(c.mano_obra),
-        num(c.materiales + c.mano_obra),
+        c.incompleto
+          ? "Parcial · faltan costos históricos"
+          : num(c.materiales + c.mano_obra),
       ]),
     )}</section>`
   );
@@ -1581,7 +1630,7 @@ function exportOrders(rows) {
       "Evidencia",
     ],
     rows.map((o) => [
-      o.id,
+      o.numero_orden,
       product(o.product)?.name,
       o.size,
       o.quantity,
@@ -1617,6 +1666,8 @@ document.addEventListener("click", async (event) => {
     "edit-incident": () => incidentForm(id),
     close: closeModal,
     pilot: () => pilotForm(id),
+    "new-user": () => userForm(),
+    "edit-user": () => userForm(id),
     "new-catalog": () => catalogForm(id),
     "new-worker": () => workerForm(),
     "edit-worker": () => workerForm(id),
@@ -1633,6 +1684,7 @@ document.addEventListener("click", async (event) => {
     "add-budget": () =>
       $("#budget-rows").insertAdjacentHTML("beforeend", budgetRow()),
     "remove-budget": () => el.closest("[data-budget-row]").remove(),
+    "confirm-legacy": confirmLegacy,
     backup: async () =>
       download(
         "respaldo-manaco-mysql-" + today() + ".json",
@@ -1701,7 +1753,10 @@ function updateResults() {
     materials: materialsTable,
     incidents: incidentsTable,
   }[route];
-  if (html) $("#results").innerHTML = html();
+  if (html) {
+    $("#results").innerHTML = html();
+    applyPermissions($("#results"));
+  }
 }
 document.addEventListener("input", (e) => {
   if (e.target.id === "search") {
@@ -1710,6 +1765,8 @@ document.addEventListener("input", (e) => {
   }
 });
 document.addEventListener("change", (e) => {
+  if (e.target.id === "legacy-file")
+    previewLegacyFile(e.target.files[0]).catch((error) => toast(error.message));
   if (e.target.id === "status-filter") {
     statusFilter = e.target.value;
     updateResults();
@@ -1858,5 +1915,154 @@ function fichaDetail(id) {
           )}</section>`,
       )
       .join(""),
+  );
+}
+let legacyPending = null;
+async function previewLegacyFile(file) {
+  if (!file) return;
+  legacyPending = null;
+  if (file.size > 10 * 1024 * 1024) throw Error("El respaldo supera 10 MB.");
+  const data = JSON.parse(await file.text());
+  const p = await api("/api/legacy/preview", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  legacyPending = { data, expectedHash: p.hash };
+  const labels = {
+    materials: "Materiales",
+    models: "Modelos",
+    variants: "Variantes por talla y color",
+    orders: "Órdenes",
+    incidents: "Incidencias",
+    movements: "Movimientos registrados",
+    workers: "Responsables",
+  };
+  showModal(
+    "Revisar migración de datos",
+    tableView(
+      ["Información", "Registros"],
+      Object.entries(p.counts).map(([k, v]) => [labels[k], num(v)]),
+    ) +
+      `<div class="note"><ul>${p.warnings.map((w) => `<li>${esc(w)}</li>`).join("")}</ul></div>${p.conflicts.length ? `<div class="note danger">No se modificará la base: hay conflictos con ${p.conflicts.map(esc).join(", ")}.</div>` : p.alreadyImported ? '<div class="note">Este archivo ya fue migrado. No se duplicarán registros.</div>' : "<p>Se añadirán los registros. Los datos existentes se conservarán.</p>"}<div class="form-footer"><button class="btn" data-action="close">Cerrar</button>${p.canImport && !p.alreadyImported ? '<button class="btn primary" data-action="confirm-legacy">Confirmar migración</button>' : ""}</div>`,
+  );
+}
+function confirmLegacy() {
+  if (!legacyPending) throw Error("Selecciona primero un respaldo.");
+  return command(
+    "/api/legacy/import",
+    legacyPending,
+    "Datos migrados y guardados en MySQL.",
+  );
+}
+
+function canAct(action) {
+  if (currentUser?.role === "Administrador") return true;
+  const read = [
+    "detail",
+    "ficha-detail",
+    "budget-detail",
+    "close",
+    "export-orders",
+    "export-materials",
+    "export-report",
+    "print",
+    "filter-report",
+    "clear-report",
+  ];
+  if (read.includes(action)) return true;
+  return (
+    currentUser?.role === "Operador" &&
+    [
+      "new-order",
+      "advance",
+      "start-stage",
+      "finish-stage",
+      "stage-incident",
+      "new-incident",
+      "edit-incident",
+      "stock",
+      "new-reservation",
+      "release-reservation",
+      "new-labor",
+    ].includes(action)
+  );
+}
+function applyPermissions(root) {
+  for (const el of root.querySelectorAll("[data-action]"))
+    if (!canAct(el.dataset.action)) el.hidden = true;
+}
+function usersView() {
+  if (currentUser?.role !== "Administrador")
+    return heading(
+      "Usuarios y permisos",
+      "Solo disponible para administradores.",
+    );
+  return (
+    heading(
+      "Usuarios y permisos",
+      "Administrador: configuración y cuentas. Operador: producción e inventario. Consulta: solo lectura.",
+      button("Nuevo usuario", "new-user"),
+    ) +
+    tableView(
+      ["Usuario", "Perfil", "Estado", "Acciones"],
+      (db.users || []).map((u) => [
+        esc(u.nombre),
+        esc(u.rol),
+        u.activo ? "Activo" : "Inactivo",
+        `<button class="btn small" data-action="edit-user" data-id="${u.usuario_id}">Editar</button>`,
+      ]),
+    )
+  );
+}
+function userForm(id) {
+  const u = (db.users || []).find((u) => u.usuario_id === Number(id));
+  showModal(
+    u ? "Editar usuario" : "Nuevo usuario",
+    formHTML(
+      field(
+        "Usuario",
+        "nombre",
+        u?.nombre || "",
+        "text",
+        'required maxlength="80"',
+        true,
+      ) +
+        selectField(
+          "Perfil",
+          "rol",
+          ["Administrador", "Operador", "Consulta"],
+          u?.rol || "Operador",
+        ) +
+        selectField(
+          "Estado",
+          "activo",
+          [
+            [1, "Activo"],
+            [0, "Inactivo"],
+          ],
+          u ? u.activo : 1,
+        ) +
+        field(
+          u ? "Nueva contraseña (vacía para conservar)" : "Contraseña",
+          "password",
+          "",
+          "password",
+          `${u ? "" : "required"} minlength="12" maxlength="200" autocomplete="new-password"`,
+          true,
+        ),
+    ),
+  );
+  bindForm((d) =>
+    command(
+      "/api/users" + (id ? "/" + id : ""),
+      {
+        nombre: d.nombre,
+        rol: d.rol,
+        activo: d.activo === "1",
+        ...(d.password ? { password: d.password } : {}),
+      },
+      "Usuario guardado; los cambios de acceso revocan las sesiones anteriores.",
+      id ? "PUT" : "POST",
+    ),
   );
 }

@@ -1,0 +1,343 @@
+{
+  "version": 1,
+  "mode": "demo",
+  "products": [
+    {
+      "id": "PRD-001",
+      "name": "Clásico ejecutivo",
+      "category": "Formal",
+      "sizes": "38, 39, 40, 41, 42",
+      "color": "Negro",
+      "description": "Calzado de cuero con acabado liso y suela de caucho.",
+      "tone": "#263344",
+      "bom": [
+        {
+          "material": "MAT-001",
+          "qty": 0.2
+        },
+        {
+          "material": "MAT-002",
+          "qty": 1
+        },
+        {
+          "material": "MAT-003",
+          "qty": 0.03
+        }
+      ]
+    },
+    {
+      "id": "PRD-002",
+      "name": "Urban casual",
+      "category": "Casual",
+      "sizes": "36, 37, 38, 39, 40, 41, 42",
+      "color": "Café",
+      "description": "Diseño versátil de cuero para uso diario.",
+      "tone": "#98745a",
+      "bom": [
+        {
+          "material": "MAT-005",
+          "qty": 0.18
+        },
+        {
+          "material": "MAT-002",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": "PRD-003",
+      "name": "Sport active",
+      "category": "Deportivo",
+      "sizes": "35, 36, 37, 38, 39, 40, 41",
+      "color": "Azul",
+      "description": "Construcción ligera en textil con plantilla anatómica.",
+      "tone": "#365b83",
+      "bom": [
+        {
+          "material": "MAT-006",
+          "qty": 0.25
+        },
+        {
+          "material": "MAT-004",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": "PRD-004",
+      "name": "Escolar clásico",
+      "category": "Escolar",
+      "sizes": "30, 31, 32, 33, 34, 35, 36",
+      "color": "Negro",
+      "description": "Resistencia y comodidad para la jornada escolar.",
+      "tone": "#3d424b",
+      "bom": [
+        {
+          "material": "MAT-001",
+          "qty": 0.15
+        },
+        {
+          "material": "MAT-002",
+          "qty": 1
+        }
+      ]
+    }
+  ],
+  "materials": [
+    {
+      "id": "MAT-001",
+      "name": "Cuero bovino negro",
+      "unit": "m²",
+      "stock": 420,
+      "min": 100
+    },
+    {
+      "id": "MAT-002",
+      "name": "Suelas de caucho",
+      "unit": "pares",
+      "stock": 1800,
+      "min": 400
+    },
+    {
+      "id": "MAT-003",
+      "name": "Adhesivo industrial",
+      "unit": "litros",
+      "stock": 18,
+      "min": 30
+    },
+    {
+      "id": "MAT-004",
+      "name": "Plantillas anatómicas",
+      "unit": "pares",
+      "stock": 320,
+      "min": 400
+    },
+    {
+      "id": "MAT-005",
+      "name": "Cuero bovino café",
+      "unit": "m²",
+      "stock": 285,
+      "min": 80
+    },
+    {
+      "id": "MAT-006",
+      "name": "Textil técnico azul",
+      "unit": "m²",
+      "stock": 510,
+      "min": 100
+    }
+  ],
+  "orders": [
+    {
+      "id": "OP-1041",
+      "product": "PRD-001",
+      "quantity": 240,
+      "state": 1,
+      "due": "2026-10-24",
+      "priority": "Alta",
+      "owner": "María Vargas",
+      "size": "40",
+      "start": "2026-10-13",
+      "created": "2026-10-13",
+      "closed": "",
+      "evidence": "",
+      "consumed": true,
+      "history": [
+        {
+          "at": "2026-10-13T12:00:00.000Z",
+          "text": "Orden de demostración registrada",
+          "actor": "Área de producción"
+        }
+      ]
+    },
+    {
+      "id": "OP-1042",
+      "product": "PRD-002",
+      "quantity": 180,
+      "state": 2,
+      "due": "2026-10-22",
+      "priority": "Normal",
+      "owner": "Carlos Rojas",
+      "size": "39",
+      "start": "2026-10-14",
+      "created": "2026-10-14",
+      "closed": "",
+      "evidence": "",
+      "consumed": true,
+      "history": [
+        {
+          "at": "2026-10-14T12:00:00.000Z",
+          "text": "Orden de demostración registrada",
+          "actor": "Área de producción"
+        }
+      ]
+    },
+    {
+      "id": "OP-1043",
+      "product": "PRD-003",
+      "quantity": 320,
+      "state": 0,
+      "due": "2026-10-27",
+      "priority": "Alta",
+      "owner": "Ana Mendoza",
+      "size": "38",
+      "start": "2026-10-15",
+      "created": "2026-10-15",
+      "closed": "",
+      "evidence": "",
+      "consumed": false,
+      "history": [
+        {
+          "at": "2026-10-15T12:00:00.000Z",
+          "text": "Orden de demostración registrada",
+          "actor": "Área de producción"
+        }
+      ]
+    },
+    {
+      "id": "OP-1044",
+      "product": "PRD-004",
+      "quantity": 150,
+      "state": 1,
+      "due": "2026-10-25",
+      "priority": "Normal",
+      "owner": "Luis Flores",
+      "size": "34",
+      "start": "2026-10-16",
+      "created": "2026-10-16",
+      "closed": "",
+      "evidence": "",
+      "consumed": true,
+      "history": [
+        {
+          "at": "2026-10-16T12:00:00.000Z",
+          "text": "Orden de demostración registrada",
+          "actor": "Área de producción"
+        }
+      ]
+    },
+    {
+      "id": "OP-1045",
+      "product": "PRD-001",
+      "quantity": 200,
+      "state": 3,
+      "due": "2026-10-19",
+      "priority": "Normal",
+      "owner": "María Vargas",
+      "size": "41",
+      "start": "2026-10-13",
+      "created": "2026-10-13",
+      "closed": "2026-10-17",
+      "evidence": "Lote de demostración verificado.",
+      "consumed": true,
+      "history": [
+        {
+          "at": "2026-10-13T12:00:00.000Z",
+          "text": "Orden de demostración registrada",
+          "actor": "Área de producción"
+        }
+      ]
+    },
+    {
+      "id": "OP-1046",
+      "product": "PRD-002",
+      "quantity": 160,
+      "state": 4,
+      "due": "2026-10-18",
+      "priority": "Normal",
+      "owner": "Carlos Rojas",
+      "size": "40",
+      "start": "2026-10-14",
+      "created": "2026-10-14",
+      "closed": "2026-10-17",
+      "evidence": "Lote de demostración verificado.",
+      "consumed": true,
+      "history": [
+        {
+          "at": "2026-10-14T12:00:00.000Z",
+          "text": "Orden de demostración registrada",
+          "actor": "Área de producción"
+        }
+      ]
+    },
+    {
+      "id": "OP-1047",
+      "product": "PRD-003",
+      "quantity": 120,
+      "state": 0,
+      "due": "2026-10-29",
+      "priority": "Normal",
+      "owner": "Ana Mendoza",
+      "size": "39",
+      "start": "2026-10-15",
+      "created": "2026-10-15",
+      "closed": "",
+      "evidence": "",
+      "consumed": false,
+      "history": [
+        {
+          "at": "2026-10-15T12:00:00.000Z",
+          "text": "Orden de demostración registrada",
+          "actor": "Área de producción"
+        }
+      ]
+    },
+    {
+      "id": "OP-1048",
+      "product": "PRD-004",
+      "quantity": 280,
+      "state": 2,
+      "due": "2026-10-23",
+      "priority": "Alta",
+      "owner": "Luis Flores",
+      "size": "35",
+      "start": "2026-10-16",
+      "created": "2026-10-16",
+      "closed": "",
+      "evidence": "",
+      "consumed": true,
+      "history": [
+        {
+          "at": "2026-10-16T12:00:00.000Z",
+          "text": "Orden de demostración registrada",
+          "actor": "Área de producción"
+        }
+      ]
+    }
+  ],
+  "incidents": [
+    {
+      "id": "INC-001",
+      "order": "OP-1041",
+      "type": "Falla de máquina",
+      "severity": "Alta",
+      "description": "Revisar tensión de la máquina de costura en línea 02.",
+      "owner": "Luis Flores",
+      "status": "Abierta",
+      "created": "2026-10-19",
+      "closed": "",
+      "action": ""
+    },
+    {
+      "id": "INC-002",
+      "order": "OP-1043",
+      "type": "Falta de material",
+      "severity": "Media",
+      "description": "Verificar disponibilidad de plantillas antes de liberar el lote.",
+      "owner": "Ana Mendoza",
+      "status": "En atención",
+      "created": "2026-10-20",
+      "closed": "",
+      "action": "Solicitud de reposición en revisión."
+    }
+  ],
+  "audit": [
+    {
+      "at": "2026-10-20T12:00:00.000Z",
+      "text": "Entorno de demostración iniciado",
+      "actor": "Área de producción"
+    }
+  ],
+  "movements": [],
+  "pilot": {}
+}

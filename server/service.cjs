@@ -76,6 +76,7 @@ async function existence(c, materialId, lot, location) {
 }
 async function saveMaterial(c, id, d) {
   const { stock_inicial, codigo_lote, ubicacion_id, ...fields } = d;
+  fields.costo_confirmado = true;
   if (id) {
     await materialLock(c, [id]);
     const current = await one(c, "SELECT * FROM MATERIAL WHERE material_id=?", [
@@ -307,7 +308,7 @@ async function startStageLocked(c, stage, order, actor) {
       if (take <= 0) continue;
       const costs = await one(
         c,
-        "SELECT COALESCE(SUM(cantidad*costo_unitario_aplicado)/NULLIF(SUM(cantidad),0),?) costo FROM MOVIMIENTO_MATERIAL WHERE existencia_id=? AND tipo_movimiento='Entrada'",
+        "SELECT COALESCE(SUM(cantidad*costo_unitario_aplicado)/NULLIF(SUM(cantidad),0),?) costo,COALESCE(MIN(costo_confirmado),0) confirmado FROM MOVIMIENTO_MATERIAL WHERE existencia_id=? AND tipo_movimiento='Entrada'",
         [material.costo_referencia, lot.existencia_id],
       );
       await insert(c, "MOVIMIENTO_MATERIAL", {
@@ -316,6 +317,7 @@ async function startStageLocked(c, stage, order, actor) {
         tipo_movimiento: "Consumo",
         cantidad: take,
         costo_unitario_aplicado: costs.costo,
+        costo_confirmado: !!costs.confirmado,
         motivo: `Consumo de ${order.numero_orden}`,
       });
       remaining = round(remaining - take);
@@ -359,7 +361,7 @@ async function finishStage(c, id, d, actor) {
   );
   if (issues.n) fail("Resuelve las incidencias de la etapa.");
   await c.execute(
-    "UPDATE DETALLE_ORDEN_ETAPA SET cantidad_aceptada=?,cantidad_rechazada=?,estado='Terminado',fin_real=UTC_TIMESTAMP() WHERE detalle_etapa_id=?",
+    "UPDATE DETALLE_ORDEN_ETAPA SET cantidad_aceptada=?,cantidad_rechazada=?,conteo_confirmado=1,estado='Terminado',fin_real=UTC_TIMESTAMP() WHERE detalle_etapa_id=?",
     [d.cantidad_aceptada, d.cantidad_rechazada, id],
   );
   await history(
@@ -408,6 +410,38 @@ async function advance(c, id, d, actor) {
     );
     if (issues.n) fail("Resuelve las incidencias antes de terminar.");
     if (!d.evidencia) fail("Registra la evidencia de calidad.", 400);
+    const last = await one(
+      c,
+      "SELECT d.* FROM DETALLE_ORDEN_ETAPA d JOIN FICHA_ETAPA f USING(ficha_etapa_id) WHERE orden_id=? ORDER BY f.secuencia DESC LIMIT 1",
+      [id],
+    );
+    if (!last.conteo_confirmado) {
+      if (
+        d.cantidad_aceptada === undefined ||
+        d.cantidad_rechazada === undefined ||
+        d.cantidad_aceptada + d.cantidad_rechazada !==
+          order.cantidad_planificada
+      )
+        fail(
+          "Registra los pares aceptados y rechazados observados en calidad; deben sumar el plan.",
+          400,
+        );
+      await c.execute(
+        "UPDATE DETALLE_ORDEN_ETAPA SET cantidad_aceptada=?,cantidad_rechazada=?,conteo_confirmado=1 WHERE detalle_etapa_id=?",
+        [d.cantidad_aceptada, d.cantidad_rechazada, last.detalle_etapa_id],
+      );
+      await history(
+        c,
+        id,
+        "Conteo de calidad registrado después de migración: " +
+          d.cantidad_aceptada +
+          " aceptados, " +
+          d.cantidad_rechazada +
+          " rechazados",
+        actor,
+      );
+    }
+
     await c.execute(
       "UPDATE ORDEN_FABRICACION SET evidencia_calidad=?,fin_real=UTC_TIMESTAMP() WHERE orden_id=?",
       [d.evidencia, id],
@@ -518,6 +552,7 @@ async function incident(c, id, d) {
 }
 async function worker(c, id, d) {
   const { etapas, ...fields } = d;
+  fields.tarifa_confirmada = true;
   if (id) {
     await one(
       c,
@@ -540,6 +575,8 @@ async function labor(c, d) {
     "SELECT * FROM TRABAJADOR_ZAPATERO WHERE trabajador_id=? AND estado='Activo' FOR UPDATE",
     [d.trabajador_id],
   );
+  if (!w.tarifa_confirmada)
+    fail("Confirma primero la tarifa del trabajador migrado.");
   await one(
     c,
     "SELECT * FROM TRABAJADOR_ETAPA WHERE trabajador_id=? AND etapa_id=?",

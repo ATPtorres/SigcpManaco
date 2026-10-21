@@ -58,7 +58,7 @@ Usa **Actualizar** para consultar los cambios de otras sesiones. No se simula un
 
 ## Modelo de datos y decisiones
 
-[database/001_schema.sql](database/001_schema.sql) implementa las 24 tablas del modelo preliminar y seis ampliaciones: `RECETA_MATERIAL`, `USUARIO`, `SESION`, `HISTORIAL_ORDEN`, `AUDITORIA` y `CRITERIO_PILOTO`. La correspondencia y las restricciones se explican en [docs/modelo-mysql.md](docs/modelo-mysql.md).
+[database/001_schema.sql](database/001_schema.sql) implementa las 24 tablas del modelo preliminar y seis ampliaciones iniciales: `RECETA_MATERIAL`, `USUARIO`, `SESION`, `HISTORIAL_ORDEN`, `AUDITORIA` y `CRITERIO_PILOTO`. Las migraciones posteriores añaden procedencia, costos/conteos confirmados, registro de importaciones, bloqueo de migración y control de versiones del esquema. La correspondencia y las restricciones se explican en [docs/modelo-mysql.md](docs/modelo-mysql.md).
 
 Los saldos se derivan de movimientos; no se almacena una segunda cantidad mutable en `EXISTENCIA_MATERIAL`. Los consumos priorizan lotes reservados por la etapa y después recepción más antigua. El costo aplicado al consumo es el promedio ponderado de entradas de ese lote y ubicación. Una etapa registra cantidades sobre el total planificado; no hay generación automática de órdenes de reproceso por rechazo.
 
@@ -66,9 +66,34 @@ El servidor bloquea la orden y los materiales implicados para impedir consumos d
 
 ## Datos anteriores y respaldos
 
-Los datos del antiguo prototipo **no se borran ni se importan automáticamente**. Al cambiar de Apache a otro host/puerto cambia el origen del navegador: exporta los JSON desde la aplicación antigua antes de cambiar. El botón de exportación anterior solo puede recuperar datos del mismo origen. El JSON antiguo no equivale al esquema relacional y requiere una migración validada con asignación de lotes, etapas, unidades y trabajadores; no se adivinan estos datos.
+La migración ya está implementada. Consulta [docs/migracion-v1.md](docs/migracion-v1.md) para las correspondencias, datos no medidos y verificaciones.
 
-En **Datos y respaldo** se puede exportar un JSON consistente de las 28 tablas de negocio, sin contraseñas ni sesiones. Es una exportación de datos; no se presenta como sustituto de un respaldo SQL completo. La interfaz no permite borrar ni reemplazar toda la base.
+Los datos anteriores no se borran ni se importan al iniciar el servidor. Para recuperar los ejemplos originales del repositorio o un respaldo del navegador:
+
+```sh
+npm run db:import-legacy -- --original
+npm run db:import-legacy -- --original --apply
+# Para un respaldo propio, reemplaza --original por --file /ruta/respaldo.json
+```
+
+La primera ejecución muestra la vista previa; `--apply` confirma la importación aditiva. El mismo archivo no se importa dos veces. Los conflictos cancelan toda la operación. También puedes seleccionar el JSON en **Datos y respaldo → Migrar respaldo anterior**, revisar la vista previa y confirmar. No se inventan lotes físicos, tarifas, costos, contratos ni etapas históricas: se utiliza un origen heredado explícito y se conservan los documentos originales.
+
+Al cambiar de Apache a otro host/puerto cambia el origen del navegador: exporta el JSON desde la aplicación antigua. El botón de exportación anterior solo puede recuperar datos del mismo origen. El archivo incluido en el repositorio es una reproducción de sus datos ficticios iniciales, no una copia de datos privados de otro navegador.
+
+Para añadir un circuito ficticio completo, separado de los datos originales:
+
+```sh
+npm run db:sample-workflow
+```
+
+En **Datos y respaldo** se exportan las 29 tablas de negocio, incluido el registro de importaciones, sin contraseñas ni sesiones. También existe un respaldo/restauración por CLI:
+
+```sh
+npm run db:backup -- /ruta/segura/respaldo.json
+npm run db:restore -- --database sigcp_recuperacion --file /ruta/segura/respaldo.json --apply
+```
+
+El destino de restauración debe existir, ser distinto de la base activa de `.env` y estar vacío de datos de negocio. El script aplica el esquema y restaura en una transacción, valida saldos y referencias y rechaza reemplazar registros existentes. No restaura usuarios ni sesiones: después de verificar la copia, configura sus cuentas mediante la inicialización o un administrador. Los respaldos SQL completos siguen siendo recomendables para operación.
 
 Para un respaldo SQL completo, ejecuta el cliente MySQL con un usuario autorizado y contraseña solicitada de manera interactiva:
 
@@ -95,7 +120,7 @@ npm run test:interface
 
 `npm test` **recrea las tablas de la base de pruebas**, aplica el esquema dos veces, carga datos ficticios y prueba autenticación, referencias, fichas versionadas, rollback, concurrencia, reservas, etapas, incidencias, horas, costos, calidad y despacho. Rechaza una base que no termine en `_test` o que coincida con `DB_NAME`.
 
-La prueba de interfaz usa el backend real y la misma base de pruebas preparada por `npm test`. Requiere Chromium: usa `/usr/bin/chromium`, el ejecutable indicado en `CHROMIUM_PATH`, o un Chromium instalado por Playwright (`npx playwright install chromium`). Verifica 14 vistas en nueve anchos (320–1920 px), accesibilidad automática, teclado, formularios y un circuito completo persistido desde otra sesión. Ambas suites deben ejecutarse en secuencia.
+La prueba de interfaz usa el backend real y la misma base de pruebas preparada por `npm test`. Requiere Chromium: usa `/usr/bin/chromium`, el ejecutable indicado en `CHROMIUM_PATH`, o un Chromium instalado por Playwright (`npx playwright install chromium`). Verifica 15 vistas en nueve anchos (320–1920 px), accesibilidad automática, teclado, formularios y un circuito completo persistido desde otra sesión. Incluye importación de archivos, usuarios y cambios de perfil. Ambas suites deben ejecutarse en secuencia.
 
 Las antiguas pruebas con almacenamiento simulado fueron reemplazadas por pruebas de integración MySQL; no se conserva un modo local alternativo que pueda ocultar fallos de conexión.
 
@@ -103,6 +128,12 @@ Las antiguas pruebas con almacenamiento simulado fueron reemplazadas por pruebas
 
 Las credenciales de aplicación se almacenan con scrypt; las sesiones, con un hash del token y caducidad de ocho horas. Las cookies son HttpOnly y SameSite Strict. Las operaciones requieren sesión y rechazan orígenes cruzados. Solo se sirven los archivos públicos indicados por el servidor, nunca `.env` ni archivos SQL.
 
-El alta inicial proporciona un administrador. No se implementa todavía una matriz de permisos por puesto ni una pantalla de gestión de cuentas. Para un despliegue compartido configura HTTPS, `COOKIE_SECURE=true`, `APP_ORIGIN` con el origen público exacto, un proxy fiable y un usuario MySQL de ejecución con privilegios mínimos. La creación del esquema debe usar credenciales de instalación; las tareas operativas no necesitan permisos DDL. Para MySQL remoto configura TLS con `DB_SSL_CA`; la verificación del certificado permanece activada.
+El alta inicial proporciona un administrador. **Usuarios y permisos** permite crear cuentas, cambiar su perfil, activar/desactivar y restablecer contraseñas. Siempre debe quedar un administrador activo. Cambiar acceso, contraseña o perfil revoca sesiones anteriores.
+
+- Administrador: catálogos, maestros, presupuesto, usuarios, respaldos, migraciones y operación.
+- Operador: órdenes, etapas, movimientos, reservas, incidencias y horas; no puede cambiar configuración, tarifas, cuentas ni presupuestos.
+- Consulta: lectura y reportes; ninguna escritura.
+
+Los permisos se validan en el servidor además de ocultar controles no permitidos en la interfaz. Para un despliegue compartido configura HTTPS, `COOKIE_SECURE=true`, `APP_ORIGIN` con el origen público exacto, un proxy fiable y un usuario MySQL de ejecución con privilegios mínimos. La creación del esquema debe usar credenciales de instalación; las tareas operativas no necesitan permisos DDL. Para MySQL remoto configura TLS con `DB_SSL_CA`; la verificación del certificado permanece activada.
 
 La bitácora es del servidor y registra al usuario autenticado; no se presenta como auditoría inmutable frente a un administrador de MySQL. La publicación del entorno cloud y el despliegue de producción son pasos distintos de ejecutar estas pruebas.

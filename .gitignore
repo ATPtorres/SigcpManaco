@@ -11,3 +11,8 @@ recuperacion-manaco-*.txt
 
 # Imagen extraída del informe fuente, no necesaria para ejecutar la aplicación
 docs/informe-gantt.png
+
+# Respaldos operativos (no versionar datos del usuario)
+backups/
+*.sql.gz
+respaldo-manaco-mysql-*.json

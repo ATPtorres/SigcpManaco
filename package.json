@@ -2,7 +2,7 @@
   "name": "sigcp-manaco",
   "version": "2.0.0",
   "private": true,
-  "description": "Gestión de fabricación de calzado con MySQL",
+  "description": "Gesti\u00f3n de fabricaci\u00f3n de calzado con MySQL",
   "engines": {
     "node": ">=22"
   },
@@ -12,7 +12,11 @@
     "db:seed": "node scripts/seed.cjs",
     "test": "node --test tests/api.test.cjs",
     "test:interface": "node tests/interface.test.cjs",
-    "user:password": "node scripts/set-password.cjs"
+    "user:password": "node scripts/set-password.cjs",
+    "db:import-legacy": "node scripts/import-legacy.cjs",
+    "db:backup": "node scripts/backup.cjs",
+    "db:restore": "node scripts/restore.cjs",
+    "db:sample-workflow": "node scripts/sample-workflow.cjs"
   },
   "dependencies": {
     "express": "5.1.0",

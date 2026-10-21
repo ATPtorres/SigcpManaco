@@ -7,6 +7,7 @@ const { schemas, catalogs, key } = require("./validation.cjs");
 const s = require("./service.cjs");
 const { state } = require("./state.cjs");
 const auth = require("./auth.cjs");
+const legacy = require("./legacy.cjs");
 function createApp(pool) {
   const app = express();
   app.disable("x-powered-by");
@@ -27,6 +28,7 @@ function createApp(pool) {
       return res.status(403).json({ error: "Origen no permitido." });
     next();
   });
+  app.use("/api/legacy", express.json({ limit: "10mb" }));
   app.use(express.json({ limit: "1mb" }));
   app.get("/api/health", async (req, res) => {
     try {
@@ -75,6 +77,7 @@ function createApp(pool) {
     res.json({ user: { name: users[0].nombre, role: users[0].rol } });
   });
   app.use("/api", auth.authenticate(pool));
+  app.use("/api", require("./users.cjs").authorize);
   app.get("/api/session", (req, res) =>
     res.json({ user: { name: req.user.nombre, role: req.user.rol } }),
   );
@@ -85,7 +88,21 @@ function createApp(pool) {
     res.set("Set-Cookie", auth.cookie("", 0)).status(204).end();
   });
   app.get("/api/state", async (req, res) =>
-    res.json(await transaction(pool, state, "REPEATABLE READ")),
+    res.json(
+      await transaction(
+        pool,
+        async (c) => {
+          const data = await state(c);
+          if (req.user.rol === "Administrador")
+            data.users = await s.rows(
+              c,
+              "SELECT usuario_id,nombre,rol,activo FROM USUARIO ORDER BY usuario_id",
+            );
+          return data;
+        },
+        "REPEATABLE READ",
+      ),
+    ),
   );
   const mutation = (label, fn) => async (req, res) => {
     const result = await transaction(pool, async (c) => {
@@ -96,9 +113,23 @@ function createApp(pool) {
     res.status(200).json({ ok: true, id: result ?? null });
   };
   app.post(
+    "/api/users",
+    mutation("Usuario creado", (c, r) =>
+      require("./users.cjs").saveUser(c, null, r.body),
+    ),
+  );
+  app.put(
+    "/api/users/:id",
+    mutation("Usuario actualizado", (c, r) =>
+      require("./users.cjs").saveUser(c, key(r.params.id), r.body),
+    ),
+  );
+  app.post(
     "/api/catalogs/:type",
     mutation("Catálogo registrado", async (c, req) => {
-      const def = catalogs[req.params.type];
+      const def = Object.hasOwn(catalogs, req.params.type)
+        ? catalogs[req.params.type]
+        : null;
       if (!def) s.fail("Catálogo desconocido.", 404);
       return s.insert(c, def.table, def.schema.parse(req.body));
     }),
@@ -226,52 +257,26 @@ function createApp(pool) {
       );
     }),
   );
-  app.get("/api/backup", async (req, res) => {
-    const tables = [
-      "UNIDAD_MEDIDA",
-      "LINEA_CALZADO",
-      "TALLA",
-      "COLOR",
-      "MATERIAL",
-      "MODELO_CALZADO",
-      "PRODUCTO_CALZADO",
-      "ETAPA_FABRICACION",
-      "FICHA_FABRICACION",
-      "FICHA_ETAPA",
-      "RECETA_MATERIAL",
-      "TRABAJADOR_ZAPATERO",
-      "TRABAJADOR_ETAPA",
-      "ORDEN_FABRICACION",
-      "DETALLE_ORDEN_ETAPA",
-      "REQUERIMIENTO_MATERIAL",
-      "PRESUPUESTO",
-      "DETALLE_PRESUPUESTO",
-      "LOTE_MATERIAL",
-      "UBICACION",
-      "EXISTENCIA_MATERIAL",
-      "RESERVA_MATERIAL",
-      "MOVIMIENTO_MATERIAL",
-      "INCIDENCIA_PRODUCCION",
-      "REGISTRO_MANO_OBRA",
-      "HISTORIAL_ORDEN",
-      "AUDITORIA",
-      "CRITERIO_PILOTO",
-    ];
-    const backup = await transaction(
-      pool,
-      async (c) => {
-        const data = {};
-        for (const table of tables)
-          data[table] = await s.rows(c, `SELECT * FROM ${table}`);
-        return {
-          format: "sigcp-mysql",
-          version: 1,
-          created: new Date().toISOString(),
-          tables: data,
-        };
-      },
-      "REPEATABLE READ",
+  app.post("/api/legacy/preview", async (req, res) =>
+    res.json(await legacy.preview(pool, req.body)),
+  );
+  app.post("/api/legacy/import", async (req, res) => {
+    if (
+      !req.body ||
+      typeof req.body.expectedHash !== "string" ||
+      !req.body.data
+    )
+      s.fail("Se requiere vista previa y archivo.", 400);
+    res.json(
+      await legacy.importLegacy(pool, req.body.data, {
+        expectedHash: req.body.expectedHash,
+        actor: req.user.nombre,
+        label: "Respaldo importado desde la interfaz",
+      }),
     );
+  });
+  app.get("/api/backup", async (req, res) => {
+    const backup = await require("./backup.cjs").backup(pool);
     res
       .set(
         "Content-Disposition",
@@ -288,16 +293,14 @@ function createApp(pool) {
   app.get("/", (req, res) => res.sendFile(path.join(root, "index.html")));
   app.use((error, req, res, next) => {
     if (error instanceof ZodError)
-      return res
-        .status(400)
-        .json({
-          error: error.issues
-            .map(
-              (i) =>
-                (i.path.join(".") ? i.path.join(".") + ": " : "") + i.message,
-            )
-            .join("; "),
-        });
+      return res.status(400).json({
+        error: error.issues
+          .map(
+            (i) =>
+              (i.path.join(".") ? i.path.join(".") + ": " : "") + i.message,
+          )
+          .join("; "),
+      });
     if (error.type === "entity.parse.failed")
       return res.status(400).json({ error: "JSON inválido." });
     if (error.type === "entity.too.large")
@@ -320,12 +323,10 @@ function createApp(pool) {
     if (error.status)
       return res.status(error.status).json({ error: error.message });
     console.error("Error de servidor:", error.code || error.name);
-    res
-      .status(500)
-      .json({
-        error:
-          "No se pudo confirmar la operación. Actualiza y vuelve a intentarlo.",
-      });
+    res.status(500).json({
+      error:
+        "No se pudo confirmar la operación. Actualiza y vuelve a intentarlo.",
+    });
   });
   return app;
 }

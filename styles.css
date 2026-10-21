@@ -49,3 +49,5 @@ nav a{font-size:14px}
 @media(max-width:650px){.topbar{gap:8px;padding:0 8px}.top-actions{gap:2px}.top-actions .btn{padding:8px;font-size:12px}.top-actions .user-avatar{display:none}.breadcrumb{min-width:0}.breadcrumb strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.auth-card{padding:20px}.recipe-row{padding:10px}}
 .table-wrap:focus-visible{outline:3px solid #6aa5e5;outline-offset:3px}
 @media(max-width:900px){.breadcrumb>span:first-of-type,.slash{display:none}.topbar{gap:10px}.top-actions{gap:6px}.top-actions .user-avatar{display:none}}
+[hidden]{display:none!important}
+.product-code{right:16px;overflow-wrap:anywhere}

@@ -72,6 +72,8 @@ const schemas = {
         "Despachado",
       ]),
       evidencia: z.string().trim().max(5000).default(""),
+      cantidad_aceptada: money.int().optional(),
+      cantidad_rechazada: money.int().optional(),
     })
     .strict(),
   stage: z

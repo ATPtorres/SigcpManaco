@@ -1,6 +1,13 @@
 // This is a read-only projection for the interface, never the persistence model.
 async function state(conn) {
   const all = async (sql) => (await conn.query(sql))[0];
+  const imports = await all(
+    "SELECT hash_origen,etiqueta,fecha_hora,actor,resumen,mapa FROM IMPORTACION_LEGACY ORDER BY fecha_hora DESC",
+  );
+  const incidentCodes = new Map();
+  for (const item of imports)
+    for (const [code, id] of Object.entries(item.mapa.incidents || {}))
+      incidentCodes.set(id, code);
   const refs = {};
   for (const [name, table] of Object.entries({
     units: "UNIDAD_MEDIDA",
@@ -58,7 +65,7 @@ async function state(conn) {
         ),
       }));
   const productsRaw = await all(
-    `SELECT p.*,m.nombre,m.descripcion,m.codigo modelo_codigo,m.linea_id,t.valor,t.sistema,c.nombre color,c.tono,l.nombre category FROM PRODUCTO_CALZADO p JOIN MODELO_CALZADO m USING(modelo_id) JOIN TALLA t USING(talla_id) JOIN COLOR c USING(color_id) JOIN LINEA_CALZADO l USING(linea_id)`,
+    `SELECT p.*,m.nombre,m.descripcion,m.codigo modelo_codigo,m.linea_id,t.valor,t.sistema,c.nombre color,c.tono,l.nombre category FROM PRODUCTO_CALZADO p JOIN MODELO_CALZADO m USING(modelo_id) JOIN TALLA t USING(talla_id) JOIN COLOR c USING(color_id) JOIN LINEA_CALZADO l USING(linea_id) ORDER BY p.producto_id`,
   );
   const products = productsRaw.map((p) => {
     const ficha = fichas.find(
@@ -91,7 +98,7 @@ async function state(conn) {
   );
   const reqs = await all("SELECT * FROM REQUERIMIENTO_MATERIAL");
   const ordersRaw = await all(
-    "SELECT o.*,f.producto_id,t.nombre_completo owner FROM ORDEN_FABRICACION o JOIN FICHA_FABRICACION f USING(ficha_id) JOIN TRABAJADOR_ZAPATERO t ON t.trabajador_id=o.responsable_id",
+    "SELECT o.*,f.producto_id,t.nombre_completo owner FROM ORDEN_FABRICACION o JOIN FICHA_FABRICACION f USING(ficha_id) JOIN TRABAJADOR_ZAPATERO t ON t.trabajador_id=o.responsable_id ORDER BY o.orden_id",
   );
   const states = [
     "Pendiente",
@@ -110,7 +117,7 @@ async function state(conn) {
     start: o.inicio_programado.slice(0, 10),
     due: o.fin_programado.slice(0, 10),
     created: o.fecha_creacion.slice(0, 10),
-    closed: o.fin_real?.slice(0, 10) || "",
+    closed: o.fin_real?.slice(0, 10) || o.fecha_cierre_heredada || "",
     priority: o.prioridad,
     evidence: o.evidencia_calidad || "",
     consumed: o.estado !== "Pendiente",
@@ -121,6 +128,8 @@ async function state(conn) {
         text: h.descripcion,
         actor: h.actor,
       })),
+    acceptedKnown: !!orderSteps.filter((s) => s.orden_id === o.orden_id).at(-1)
+      ?.conteo_confirmado,
     acceptedPairs:
       orderSteps.filter((s) => s.orden_id === o.orden_id).at(-1)
         ?.cantidad_aceptada || 0,
@@ -128,11 +137,12 @@ async function state(conn) {
     requirements: reqs.filter((r) => r.orden_id === o.orden_id),
   }));
   const incidentsRaw = await all(
-    "SELECT i.*,d.orden_id,t.nombre_completo owner FROM INCIDENCIA_PRODUCCION i JOIN DETALLE_ORDEN_ETAPA d USING(detalle_etapa_id) JOIN TRABAJADOR_ZAPATERO t ON t.trabajador_id=i.responsable_id",
+    "SELECT i.*,d.orden_id,o.numero_orden,t.nombre_completo owner FROM INCIDENCIA_PRODUCCION i JOIN DETALLE_ORDEN_ETAPA d USING(detalle_etapa_id) JOIN ORDEN_FABRICACION o USING(orden_id) JOIN TRABAJADOR_ZAPATERO t ON t.trabajador_id=i.responsable_id",
   );
   const incidents = incidentsRaw.map((i) => ({
     ...i,
     id: `INC-${i.incidencia_id}`,
+    codigo: incidentCodes.get(i.incidencia_id) || `INC-${i.incidencia_id}`,
     order: `OP-${i.orden_id}`,
     type: i.tipo,
     description: i.descripcion,
@@ -159,7 +169,7 @@ async function state(conn) {
     ]),
   );
   const budgets = await all(
-    `SELECT p.*,COALESCE(SUM(d.cantidad*d.costo_unitario_estimado),0) subtotal,ROUND(COALESCE(SUM(d.cantidad*d.costo_unitario_estimado),0)*(1+p.porcentaje_contingencia/100),4) total FROM PRESUPUESTO p LEFT JOIN DETALLE_PRESUPUESTO d USING(presupuesto_id) GROUP BY p.presupuesto_id`,
+    `SELECT p.*,COALESCE(SUM(d.cantidad*d.costo_unitario_estimado),0) subtotal,ROUND(COALESCE(SUM(d.cantidad*d.costo_unitario_estimado),0)*(1+p.porcentaje_contingencia/100),4) total FROM PRESUPUESTO p LEFT JOIN DETALLE_PRESUPUESTO d USING(presupuesto_id) GROUP BY p.presupuesto_id ORDER BY p.presupuesto_id`,
   );
   const budgetLines = await all("SELECT * FROM DETALLE_PRESUPUESTO");
   for (const b of budgets)
@@ -167,9 +177,10 @@ async function state(conn) {
       (d) => d.presupuesto_id === b.presupuesto_id,
     );
   const costs = await all(
-    `SELECT o.orden_id,COALESCE((SELECT SUM(m.cantidad*m.costo_unitario_aplicado) FROM MOVIMIENTO_MATERIAL m JOIN DETALLE_ORDEN_ETAPA d USING(detalle_etapa_id) WHERE d.orden_id=o.orden_id AND m.tipo_movimiento='Consumo'),0) materiales,COALESCE((SELECT SUM(r.horas_trabajadas*r.tarifa_hora_aplicada) FROM REGISTRO_MANO_OBRA r JOIN DETALLE_ORDEN_ETAPA d USING(detalle_etapa_id) WHERE d.orden_id=o.orden_id),0) mano_obra FROM ORDEN_FABRICACION o`,
+    `SELECT o.orden_id,COALESCE((SELECT SUM(m.cantidad*m.costo_unitario_aplicado) FROM MOVIMIENTO_MATERIAL m JOIN DETALLE_ORDEN_ETAPA d USING(detalle_etapa_id) WHERE d.orden_id=o.orden_id AND m.tipo_movimiento='Consumo'),0) materiales,COALESCE((SELECT SUM(r.horas_trabajadas*r.tarifa_hora_aplicada) FROM REGISTRO_MANO_OBRA r JOIN DETALLE_ORDEN_ETAPA d USING(detalle_etapa_id) WHERE d.orden_id=o.orden_id),0) mano_obra, (o.origen_datos='Migrado' OR EXISTS(SELECT 1 FROM MOVIMIENTO_MATERIAL m JOIN DETALLE_ORDEN_ETAPA d USING(detalle_etapa_id) WHERE d.orden_id=o.orden_id AND m.costo_confirmado=0)) incompleto FROM ORDEN_FABRICACION o`,
   );
   return {
+    imports: imports.map(({ mapa, ...summary }) => summary),
     version: 2,
     mode: "own",
     costs,
