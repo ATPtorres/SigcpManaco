@@ -1,5 +1,7 @@
 # Análisis del informe SIGCP–MANACO
 
+> Documento histórico de decisiones del prototipo local. La implementación actual usa MySQL y backend; consulta [modelo-mysql.md](modelo-mysql.md) y el README para el alcance vigente. Las limitaciones del prototipo descritas abajo no son la arquitectura actual.
+
 Fuente: Informe_ampliado_SIGCP_MANACO (1).pdf, 27 páginas. Se examinó el texto completo y la imagen del Gantt de la página 13. Las referencias a DOCX y XLSX que aparecen al final no se adjuntaron; no se presume su contenido.
 
 ## Interpretación del objetivo
