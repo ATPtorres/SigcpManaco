@@ -53,10 +53,10 @@ Reglas de descomposición:
 
 ### 3.1 Identidad y propósito
 
-**Nombre:** SIGCP–MANACO.  
-**Dominio:** gestión y control de fabricación de calzado.  
-**Contexto funcional:** planta de producción de calzado, con referencias de interfaz a Cochabamba, Bolivia.  
-**Finalidad:** centralizar productos, fichas de fabricación, órdenes, ejecución de etapas, materiales, inventario, reservas, trabajadores, incidencias, presupuestos, costos directos y evidencias de calidad.
+- **Nombre:** SIGCP–MANACO.
+- **Dominio:** gestión y control de fabricación de calzado.
+- **Contexto funcional:** planta de producción de calzado, con referencias de interfaz a Cochabamba, Bolivia.
+- **Finalidad:** centralizar productos, fichas de fabricación, órdenes, ejecución de etapas, materiales, inventario, reservas, trabajadores, incidencias, presupuestos, costos directos y evidencias de calidad.
 
 El sistema es una aplicación de gestión interna. No es una tienda virtual ni un sistema de ventas al consumidor.
 
