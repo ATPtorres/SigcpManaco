@@ -16,3 +16,6 @@ docs/informe-gantt.png
 backups/
 *.sql.gz
 respaldo-manaco-mysql-*.json
+
+# Servicios y datos privados de desarrollo en Windows
+.runtime/

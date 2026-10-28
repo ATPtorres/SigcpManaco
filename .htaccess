@@ -1,0 +1,7 @@
+# XAMPP solo redirige al backend. Los secretos y archivos privados no se sirven.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+RewriteEngine On
+RewriteRule ^(?:\.runtime|node_modules|server|scripts|database|backups)(?:/|$) - [F,L]
+RewriteRule ^(?:index\.html)?$ http://127.0.0.1:3000/ [R=302,L]
