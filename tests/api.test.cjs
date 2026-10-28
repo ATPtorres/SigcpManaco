@@ -937,3 +937,50 @@ test("Pilot and audit are persisted with the authenticated actor; logout revokes
   assert.equal((await request("/api/logout", {})).status, 204);
   assert.equal((await request("/api/state")).status, 401);
 });
+
+test("seed defaults to 1234 and preserves an existing account password", async () => {
+  const previousUser = process.env.APP_USER;
+  const previousPassword = process.env.APP_PASSWORD;
+  const username = "seed-default-test";
+  try {
+    process.env.APP_USER = username;
+    delete process.env.APP_PASSWORD;
+    await seed(pool);
+    const [before] = await pool.execute(
+      "SELECT password_hash FROM USUARIO WHERE nombre=?",
+      [username],
+    );
+    assert.notEqual(before[0].password_hash, "1234");
+    const login = await request(
+      "/api/login",
+      { username, password: "1234" },
+      "POST",
+      false,
+    );
+    assert.equal(login.status, 200);
+    const rejected = await request(
+      "/api/login",
+      { username, password: "incorrecta" },
+      "POST",
+      false,
+    );
+    assert.equal(rejected.status, 401);
+    process.env.APP_PASSWORD = "OtraClaveSegura123";
+    await seed(pool);
+    const [after] = await pool.execute(
+      "SELECT password_hash FROM USUARIO WHERE nombre=?",
+      [username],
+    );
+    assert.equal(after[0].password_hash, before[0].password_hash);
+  } finally {
+    if (previousUser === undefined) delete process.env.APP_USER;
+    else process.env.APP_USER = previousUser;
+    if (previousPassword === undefined) delete process.env.APP_PASSWORD;
+    else process.env.APP_PASSWORD = previousPassword;
+    await pool.execute(
+      "DELETE s FROM SESION s JOIN USUARIO u USING(usuario_id) WHERE u.nombre=?",
+      [username],
+    );
+    await pool.execute("DELETE FROM USUARIO WHERE nombre=?", [username]);
+  }
+});

@@ -543,7 +543,9 @@ async function populateDemo(pool) {
 }
 if (require.main === module) {
   const pool = createPool();
-  populateDemo(pool)
+  require("./seed.cjs")
+    .seed(pool)
+    .then(() => populateDemo(pool))
     .then((r) => console.log(JSON.stringify(r, null, 2)))
     .catch((e) => {
       console.error(e.message);

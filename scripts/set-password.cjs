@@ -1,8 +1,8 @@
 const { createPool, transaction } = require("../server/db.cjs");
 const { hashPassword } = require("../server/auth.cjs");
 (async () => {
-  if (!process.env.APP_PASSWORD || process.env.APP_PASSWORD.length < 12)
-    throw Error("APP_PASSWORD debe tener al menos 12 caracteres.");
+  if (!process.env.APP_PASSWORD || process.env.APP_PASSWORD.length < 4)
+    throw Error("APP_PASSWORD debe tener al menos 4 caracteres.");
   const pool = createPool();
   try {
     const hash = await hashPassword(process.env.APP_PASSWORD);

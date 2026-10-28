@@ -2,11 +2,10 @@ const { createPool, transaction } = require("../server/db.cjs");
 const { hashPassword } = require("../server/auth.cjs");
 const s = require("../server/service.cjs");
 async function seed(pool) {
-  if (!process.env.APP_PASSWORD || process.env.APP_PASSWORD.length < 12)
-    throw Error(
-      "Configura APP_PASSWORD de al menos 12 caracteres antes de inicializar.",
-    );
-  const hash = await hashPassword(process.env.APP_PASSWORD);
+  const password = process.env.APP_PASSWORD || "1234";
+  if (password.length < 4)
+    throw Error("APP_PASSWORD debe tener al menos 4 caracteres.");
+  const hash = await hashPassword(password);
   await transaction(pool, async (c) => {
     const user = process.env.APP_USER || "admin";
     const existing = await s.rows(
