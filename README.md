@@ -56,6 +56,18 @@ La carga demo rechaza una base que ya tenga materiales. Nunca se ejecuta automá
 
 Usa **Actualizar** para consultar los cambios de otras sesiones. No se simula una escritura local cuando el servidor falla. Los estados generales de la orden son Pendiente → En producción → Control de calidad → Terminado → Despachado. El porcentaje de estado es una posición en ese flujo; los pares finalizados del panel usan los aceptados en la última etapa de órdenes cerradas.
 
+## Poblar la base con datos de demostración
+
+```sh
+npm run db:populate
+```
+
+Después de instalar el esquema y los catálogos, este comando añade un conjunto ficticio amplio: 12 materiales, 8 modelos, 48 variantes, 12 trabajadores y 20 órdenes (cuatro por cada estado). Incluye lotes, recepciones/salidas, reservas, incidencias abiertas/en atención/resueltas, horas y 22 presupuestos con versiones y estados de ejemplo. Completa únicamente los criterios del piloto que no existan, dejándolos pendientes con evidencia ficticia.
+
+Los registros nuevos llevan códigos `DEMO-POB-` o identificación de demostración. No cambia los registros previos, no crea cuentas de acceso y no restablece contraseñas. La carga es transaccional y se registra en auditoría; repetirla no duplica registros. Si encuentra códigos de ese conjunto sin una carga confirmada, se detiene para evitar sobrescribirlos. No se ejecuta al iniciar el servidor.
+
+Los costos y nombres son ficticios. Las fechas de registro corresponden a la carga y las fechas programadas varían para explorar el seguimiento. Los ejemplos no representan producción real ni aprobación del piloto. Consulta [docs/datos-demostracion.md](docs/datos-demostracion.md) para las cantidades verificadas en el entorno.
+
 ## Modelo de datos y decisiones
 
 [database/001_schema.sql](database/001_schema.sql) implementa las 24 tablas del modelo preliminar y seis ampliaciones iniciales: `RECETA_MATERIAL`, `USUARIO`, `SESION`, `HISTORIAL_ORDEN`, `AUDITORIA` y `CRITERIO_PILOTO`. Las migraciones posteriores añaden procedencia, costos/conteos confirmados, registro de importaciones, bloqueo de migración y control de versiones del esquema. La correspondencia y las restricciones se explican en [docs/modelo-mysql.md](docs/modelo-mysql.md).

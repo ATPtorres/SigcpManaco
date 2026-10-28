@@ -862,6 +862,69 @@ test("Business backup restores to an empty database and rejects destructive repl
   assert.equal((await snapshot()).imports.length, 1);
 });
 
+test("Population adds coherent fictional data and preserves every existing business row", async () => {
+  const { populateDemo, PREFIX } = require("../scripts/populate-demo.cjs");
+  const { backup } = require("../server/backup.cjs");
+  const before = await backup(pool);
+  const result = await populateDemo(pool);
+  assert.equal(result.alreadyCreated, false);
+  assert.equal(result.variants, 48);
+  assert.equal(result.orders, 20);
+  const after = await backup(pool);
+  const canonical = (v) =>
+    Array.isArray(v)
+      ? v.map(canonical)
+      : v && typeof v === "object"
+        ? Object.fromEntries(
+            Object.keys(v)
+              .sort()
+              .map((k) => [k, canonical(v[k])]),
+          )
+        : v;
+  for (const [table, rows] of Object.entries(before.tables)) {
+    const present = new Set(
+      after.tables[table].map((r) => JSON.stringify(canonical(r))),
+    );
+    for (const row of rows)
+      assert.ok(
+        present.has(JSON.stringify(canonical(row))),
+        table + " modified an existing row",
+      );
+  }
+  const data = await snapshot();
+  const orders = data.orders.filter((o) => o.numero_orden.startsWith(PREFIX));
+  assert.equal(orders.length, 20);
+  for (let state = 0; state < 5; state++)
+    assert.equal(orders.filter((o) => o.state === state).length, 4);
+  assert.equal(
+    data.products.filter((p) => p.sku.startsWith(PREFIX)).length,
+    48,
+  );
+  assert.equal(
+    data.budgets.filter((b) => orders.some((o) => o.orden_id === b.orden_id))
+      .length,
+    22,
+  );
+  assert.ok(data.lots.every((l) => l.saldo >= l.reservado && l.reservado >= 0));
+  for (const o of orders)
+    if (o.state >= 3) {
+      assert.ok(o.evidence);
+      assert.ok(
+        o.etapas.every(
+          (e) =>
+            e.estado === "Terminado" &&
+            e.cantidad_aceptada + e.cantidad_rechazada === o.quantity,
+        ),
+      );
+      assert.ok(
+        !data.incidents.some(
+          (i) => i.orden_id === o.orden_id && i.estado !== "Resuelta",
+        ),
+      );
+    }
+  assert.equal((await populateDemo(pool)).alreadyCreated, true);
+  assert.deepEqual((await backup(pool)).tables, after.tables);
+});
 test("Pilot and audit are persisted with the authenticated actor; logout revokes the session", async () => {
   await ok(
     "/api/pilot/0",
