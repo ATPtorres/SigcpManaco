@@ -183,6 +183,61 @@ const product = (id) => db.products.find((p) => p.id === id);
 const lowStock = () =>
   db.materials.filter((m) => m.activo && m.stock - m.reserved <= m.min);
 const openIncidents = () => db.incidents.filter((i) => i.status !== "Resuelta");
+const daysUntil = (value) =>
+  Math.round(
+    (new Date(value + "T12:00:00") - new Date(today() + "T12:00:00")) /
+      86400000,
+  );
+const deadlineText = (days) =>
+  days < 0
+    ? "Entrega vencida"
+    : days === 0
+      ? "Vence hoy"
+      : days === 1
+        ? "Vence mañana"
+        : `${days} días`;
+const openOrders = () => db.orders.filter((o) => o.state < 3);
+const deadlineOrders = () =>
+  openOrders()
+    .filter((o) => daysUntil(o.due) <= 1)
+    .sort((a, b) => a.due.localeCompare(b.due));
+const currentStage = (o) =>
+  o.etapas.find((e) => e.estado === "En producción") ||
+  o.etapas.find((e) => e.estado === "Pendiente");
+const alertCount = () =>
+  lowStock().length + openIncidents().length + deadlineOrders().length;
+const dueNote = (o) => {
+  if (o.state >= 3) return "";
+  const days = daysUntil(o.due);
+  if (days > 1) return "";
+  return `<small class="${days < 0 ? "due-danger" : "due-warning"}">${deadlineText(days)}</small>`;
+};
+const deadlineNotice = (o) => {
+  if (o.state >= 3) return "";
+  const days = daysUntil(o.due);
+  if (days > 1) return "";
+  const stage = currentStage(o);
+  return `<div class="note danger">${deadlineText(days)} (${date(o.due)}). ${
+    stage
+      ? `La etapa ${stage.secuencia} ${stage.nombre} está ${stage.estado.toLowerCase()}.`
+      : "No hay etapas pendientes."
+  }</div>`;
+};
+const deadlineAlerts = () =>
+  deadlineOrders().map((o) => {
+    const stage = currentStage(o);
+    return {
+      title: `${o.numero_orden} · ${deadlineText(daysUntil(o.due))}`,
+      text:
+        `${product(o.product)?.name || "Producto"} · ` +
+        (stage
+          ? `etapa ${stage.secuencia} ${stage.nombre} (${stage.estado.toLowerCase()})`
+          : "sin etapas pendientes") +
+        ` · entrega ${date(o.due)}`,
+      link: "orders",
+      label: "Revisar orden",
+    };
+  });
 const badge = (s) => `<span class="tag s${s}">${states[s]}</span>`;
 const priority = (p) =>
   `<span class="priority ${p === "Alta" ? "" : "normal"}"><i></i>${esc(p)}</span>`;
@@ -216,6 +271,14 @@ function render() {
         `<a href="#${key}" class="${route === key ? "active " : ""}${key === "project" ? "nav-separator" : ""}" ${route === key ? 'aria-current="page"' : ""}>${icon(ico)}${label}${key === "incidents" && openIncidents().length ? `<span class="nav-count">${openIncidents().length}</span>` : ""}</a>`,
     )
     .join("");
+  const alerts = alertCount();
+  $("#notification").innerHTML =
+    icon("bell") +
+    (alerts ? `<span class="notification-count">${alerts}</span>` : "");
+  $("#notification").setAttribute(
+    "aria-label",
+    alerts ? `Ver alertas (${alerts})` : "Ver alertas",
+  );
   $("#main").innerHTML = {
     dashboard: dashboard,
     orders: ordersView,
@@ -253,8 +316,8 @@ function dashboard() {
         button("Nueva orden", "new-order"),
     ) +
     `<section class="overview-banner"><div><div class="eyebrow">GESTIÓN INDUSTRIAL DE CALZADO</div><h2>El pulso de tu producción.</h2><p>Supervisa órdenes, anticipa faltantes y mantén el trabajo en movimiento.</p></div><div class="banner-side"><div class="banner-date"><span>COCHABAMBA, BOLIVIA</span><strong>${date(today())}</strong></div><svg class="factory-art" viewBox="0 0 120 90" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4 78h111M13 75V37l25 13V30l27 16V13h12l6 62M13 75h94V39L83 50M65 13h12M65 20h13M23 59h8v9h-8zM43 59h8v9h-8zM64 59h8v9h-8zM89 59h8v9h-8zM17 85h90"/><path d="M69 7V3m8 3 3-3"/></svg></div></section>` +
-    `<section class="kpis" aria-label="Indicadores de producción">${kpi("Órdenes activas", num(active.length), "órdenes", `<b>${db.orders.filter((o) => o.state === 1).length} en producción</b> · ${db.orders.filter((o) => o.state === 0).length} pendientes`, "orders")}${kpi("Pares conformes medidos", unmeasured.length === done.length && done.length ? "Sin dato" : num(finished), "pares", unmeasured.length ? `${unmeasured.length} cierres heredados sin conteo de calidad` : `${num(total)} pares planificados en total`, "box")}${kpi("Plan cerrado", total ? Math.round((closedPlan / total) * 100) + "%" : "—", "", `${done.length} de ${db.orders.length} órdenes terminadas`, "chart")}${kpi("Requieren atención", lowStock().length + openIncidents().length, "alertas", `<b>${lowStock().length} materiales bajo mínimo</b> · ${openIncidents().length} incidencias`, "alert", true)}</section>` +
-    `<div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Producción por modelo</h2><p class="panel-subtitle">Plan y pares conformes medidos</p></div><div class="chart-legend"><span><i class="key"></i>Planificado</span><span><i class="key red"></i>Conformes</span></div></div>${productionChart()}<div class="chart-bottom"><span>${db.mode === "demo" ? "Datos de demostración" : "Datos compartidos"} · Todas las órdenes</span><a class="text-link" href="#reports">Ver análisis ${icon("arrow")}</a></div></section><section class="panel"><div class="panel-head"><div><h2>Centro de atención</h2><p class="panel-subtitle">Lo que necesita una decisión</p></div><span class="tag danger">${lowStock().length + openIncidents().length} alertas</span></div><div class="alert-list">${alertsHTML()}</div><div class="panel-foot"><span>Anticiparse también es producir.</span><a class="text-link" href="#incidents">Ver incidencias →</a></div></section></div>` +
+    `<section class="kpis" aria-label="Indicadores de producción">${kpi("Órdenes activas", num(active.length), "órdenes", `<b>${db.orders.filter((o) => o.state === 1).length} en producción</b> · ${db.orders.filter((o) => o.state === 0).length} pendientes`, "orders")}${kpi("Pares conformes medidos", unmeasured.length === done.length && done.length ? "Sin dato" : num(finished), "pares", unmeasured.length ? `${unmeasured.length} cierres heredados sin conteo de calidad` : `${num(total)} pares planificados en total`, "box")}${kpi("Plan cerrado", total ? Math.round((closedPlan / total) * 100) + "%" : "—", "", `${done.length} de ${db.orders.length} órdenes terminadas`, "chart")}${kpi("Requieren atención", alertCount(), "alertas", `<b>${lowStock().length} materiales bajo mínimo</b> · ${openIncidents().length} incidencias · ${deadlineOrders().length} por vencer`, "alert", true)}</section>` +
+    `<div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Producción por modelo</h2><p class="panel-subtitle">Plan y pares conformes medidos</p></div><div class="chart-legend"><span><i class="key"></i>Planificado</span><span><i class="key red"></i>Conformes</span></div></div>${productionChart()}<div class="chart-bottom"><span>${db.mode === "demo" ? "Datos de demostración" : "Datos compartidos"} · Todas las órdenes</span><a class="text-link" href="#reports">Ver análisis ${icon("arrow")}</a></div></section><section class="panel"><div class="panel-head"><div><h2>Centro de atención</h2><p class="panel-subtitle">Lo que necesita una decisión</p></div><span class="tag danger">${alertCount()} alertas</span></div><div class="alert-list">${alertsHTML()}</div><div class="panel-foot"><span>Anticiparse también es producir.</span><a class="text-link" href="#incidents">Ver incidencias →</a></div></section></div>` +
     `<section class="panel"><div class="panel-head table-heading"><div><h2>Órdenes de producción</h2><p class="panel-subtitle">Seguimiento de los lotes más recientes</p></div><a class="text-link" href="#orders">Ver todas las órdenes →</a></div>${orderTable([...db.orders].reverse().slice(0, 5))}</section>`
   );
 }
@@ -273,6 +336,7 @@ function productionChart() {
 }
 function alertsHTML() {
   const items = [
+    ...deadlineAlerts(),
     ...lowStock().map((m) => ({
       title: m.name,
       text: `${num(m.stock)} ${m.unit} disponibles · mínimo ${num(m.min)}`,
@@ -296,7 +360,7 @@ function alertsHTML() {
     : '<div class="empty">Sin alertas pendientes.</div>';
 }
 function orderTable(orders) {
-  return `<div class="table-wrap" tabindex="0"><table><thead><tr><th>ORDEN / PRODUCTO</th><th>CANTIDAD</th><th>ESTADO</th><th>AVANCE</th><th>ENTREGA</th><th>PRIORIDAD</th><th scope="col">Acciones</th></tr></thead><tbody>${orders.map((o) => `<tr><td><button class="order-id" data-action="detail" data-id="${o.id}">${esc(o.numero_orden)}</button><small>${esc(product(o.product)?.name)} · T${esc(o.size)}</small></td><td><strong>${num(o.quantity)}</strong> pares</td><td>${badge(o.state)}</td><td><span class="progress"><span style="width:${o.state * 25}%"></span></span><span class="progress-num">${o.state * 25}%</span></td><td>${date(o.due)}${o.due < today() && o.state < 3 ? '<small style="color:var(--red)">Entrega vencida</small>' : ""}</td><td>${priority(o.priority)}</td><td><button class="icon-button" data-action="detail" data-id="${o.id}" aria-label="Ver ${esc(o.numero_orden)}">${icon("arrow")}</button></td></tr>`).join("") || '<tr><td colspan="7"><div class="empty">No hay órdenes para esta búsqueda.</div></td></tr>'}</tbody></table></div>`;
+  return `<div class="table-wrap" tabindex="0"><table><thead><tr><th>ORDEN / PRODUCTO</th><th>CANTIDAD</th><th>ESTADO</th><th>AVANCE</th><th>ENTREGA</th><th>PRIORIDAD</th><th scope="col">Acciones</th></tr></thead><tbody>${orders.map((o) => `<tr><td><button class="order-id" data-action="detail" data-id="${o.id}">${esc(o.numero_orden)}</button><small>${esc(product(o.product)?.name)} · T${esc(o.size)}</small></td><td><strong>${num(o.quantity)}</strong> pares</td><td>${badge(o.state)}</td><td><span class="progress"><span style="width:${o.state * 25}%"></span></span><span class="progress-num">${o.state * 25}%</span></td><td>${date(o.due)}${dueNote(o)}</td><td>${priority(o.priority)}</td><td><button class="icon-button" data-action="detail" data-id="${o.id}" aria-label="Ver ${esc(o.numero_orden)}">${icon("arrow")}</button></td></tr>`).join("") || '<tr><td colspan="7"><div class="empty">No hay órdenes para esta búsqueda.</div></td></tr>'}</tbody></table></div>`;
 }
 function toolbar(placeholder, options = []) {
   return `<div class="toolbar"><label class="search-box">${icon("search")}<input id="search" type="search" value="${esc(query)}" placeholder="${placeholder}" aria-label="${placeholder}"></label><div class="filters">${options.length ? `<select id="status-filter" aria-label="Filtrar registros"><option value="">Todos los registros</option>${options.map((v, i) => `<option value="${esc(v)}" ${statusFilter === v ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>` : ""}<span class="result-count" id="result-count"></span></div></div>`;
@@ -346,7 +410,7 @@ function trackingView() {
               .filter((o) => o.state === index)
               .map(
                 (o) =>
-                  `<article class="kanban-card"><div class="kanban-meta"><button class="order-id" data-action="detail" data-id="${o.id}">${esc(o.numero_orden)}</button>${priority(o.priority)}</div><h3>${esc(product(o.product)?.name)}</h3><p>${num(o.quantity)} pares · Talla ${esc(o.size)}</p><div class="kanban-meta"><span>${esc(o.owner)}</span><span>${date(o.due)}</span></div><button class="btn small" data-action="detail" data-id="${o.id}">Ver orden ${icon("arrow")}</button></article>`,
+                  `<article class="kanban-card"><div class="kanban-meta"><button class="order-id" data-action="detail" data-id="${o.id}">${esc(o.numero_orden)}</button>${priority(o.priority)}</div><h3>${esc(product(o.product)?.name)}</h3><p>${num(o.quantity)} pares · Talla ${esc(o.size)}</p><div class="kanban-meta"><span>${esc(o.owner)}</span><span>${date(o.due)}${o.state < 3 && daysUntil(o.due) <= 1 ? ` · <b class="${daysUntil(o.due) < 0 ? "due-danger" : "due-warning"}">${deadlineText(daysUntil(o.due))}</b>` : ""}</span></div><button class="btn small" data-action="detail" data-id="${o.id}">Ver orden ${icon("arrow")}</button></article>`,
               )
               .join("") || '<div class="empty">Sin órdenes</div>'
           }</section>`,
@@ -737,7 +801,7 @@ function detail(id) {
   if (!o) return;
   showModal(
     "Orden " + o.numero_orden,
-    `<div class="row-actions">${badge(o.state)}${priority(o.priority)}</div><div class="detail-grid"><div><small>Producto</small><strong>${esc(product(o.product)?.name)}</strong></div><div><small>Planificado</small><strong>${num(o.quantity)} pares</strong></div><div><small>Responsable</small><strong>${esc(o.owner)}</strong></div><div><small>Ficha / fechas</small><strong>#${o.ficha_id} · ${date(o.start)} → ${date(o.due)}</strong></div></div>${o.origen_datos === "Migrado" ? '<div class="note">Orden heredada: los consumos anteriores ya están reflejados en el saldo. Las horas de inicio y el desglose histórico por etapas no fueron registrados.</div>' : ""}<h3>Etapas de fabricación</h3><div class="activity">${o.etapas.map((e) => `<div class="activity-item"><strong>${e.secuencia}. ${esc(e.nombre)}</strong><p>${esc(e.estado)} · ${e.conteo_confirmado ? `Aceptados: ${num(e.cantidad_aceptada)} · Rechazados: ${num(e.cantidad_rechazada)}` : "Conteo histórico: no medido"}</p><div class="row-actions">${["Pendiente", "En producción"].includes(e.estado) && o.state < 3 ? `<button class="text-link" data-action="stage-incident" data-id="${e.detalle_etapa_id}">Registrar incidencia</button>` : ""}</div>${e.estado === "Pendiente" && o.state === 1 ? `<button class="btn small" data-action="start-stage" data-id="${e.detalle_etapa_id}">Iniciar ${esc(e.nombre)}</button>` : ""}${e.estado === "En producción" ? `<button class="btn small" data-action="finish-stage" data-id="${e.detalle_etapa_id}">Terminar ${esc(e.nombre)}</button>` : ""}</div>`).join("")}</div>${o.evidence ? `<div class="note">Evidencia de calidad: ${esc(o.evidence)}</div>` : ""}<h3>Trazabilidad</h3><div class="activity">${o.history.map((h) => `<div class="activity-item">${esc(h.text)}<small>${date(h.at)} · ${esc(h.actor)}</small></div>`).join("")}</div><div class="form-footer">${o.state < 4 ? `<button class="btn primary" data-action="advance" data-id="${o.id}">${["Iniciar producción", "Enviar a calidad", "Terminar orden", "Registrar despacho"][o.state]}</button>` : ""}</div>`,
+    `<div class="row-actions">${badge(o.state)}${priority(o.priority)}</div><div class="detail-grid"><div><small>Producto</small><strong>${esc(product(o.product)?.name)}</strong></div><div><small>Planificado</small><strong>${num(o.quantity)} pares</strong></div><div><small>Responsable</small><strong>${esc(o.owner)}</strong></div><div><small>Ficha / fechas</small><strong>#${o.ficha_id} · ${date(o.start)} → ${date(o.due)}</strong></div></div>${deadlineNotice(o)}${o.origen_datos === "Migrado" ? '<div class="note">Orden heredada: los consumos anteriores ya están reflejados en el saldo. Las horas de inicio y el desglose histórico por etapas no fueron registrados.</div>' : ""}<h3>Etapas de fabricación</h3><div class="activity">${o.etapas.map((e) => `<div class="activity-item"><strong>${e.secuencia}. ${esc(e.nombre)}</strong><p>${esc(e.estado)} · ${e.conteo_confirmado ? `Aceptados: ${num(e.cantidad_aceptada)} · Rechazados: ${num(e.cantidad_rechazada)}` : "Conteo histórico: no medido"}</p><div class="row-actions">${["Pendiente", "En producción"].includes(e.estado) && o.state < 3 ? `<button class="text-link" data-action="stage-incident" data-id="${e.detalle_etapa_id}">Registrar incidencia</button>` : ""}</div>${e.estado === "Pendiente" && o.state === 1 ? `<button class="btn small" data-action="start-stage" data-id="${e.detalle_etapa_id}">Iniciar ${esc(e.nombre)}</button>` : ""}${e.estado === "En producción" ? `<button class="btn small" data-action="finish-stage" data-id="${e.detalle_etapa_id}">Terminar ${esc(e.nombre)}</button>` : ""}</div>`).join("")}</div>${o.evidence ? `<div class="note">Evidencia de calidad: ${esc(o.evidence)}</div>` : ""}<h3>Trazabilidad</h3><div class="activity">${o.history.map((h) => `<div class="activity-item">${esc(h.text)}<small>${date(h.at)} · ${esc(h.actor)}</small></div>`).join("")}</div><div class="form-footer">${o.state < 4 ? `<button class="btn primary" data-action="advance" data-id="${o.id}">${["Iniciar producción", "Enviar a calidad", "Terminar orden", "Registrar despacho"][o.state]}</button>` : ""}</div>`,
   );
 }
 async function advance(id) {
