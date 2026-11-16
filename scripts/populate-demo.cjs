@@ -548,7 +548,8 @@ async function populateDemo(pool, { edition = 'v1', training = false } = {}) {
 }
 if (require.main === module) {
   const pool = createPool();
-  populateDemo(pool, { edition: process.argv.includes('--renew') ? 'v2' : 'v1', training: process.argv.includes('--training') })
+  require('./seed.cjs').seed(pool)
+    .then(() => populateDemo(pool, { edition: process.argv.includes('--renew') ? 'v2' : 'v1', training: process.argv.includes('--training') }))
     .then((r) => console.log(JSON.stringify(r, null, 2)))
     .catch((e) => {
       console.error(e.message);

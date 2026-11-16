@@ -13,7 +13,7 @@ npm ci
 cp .env.example .env
 ```
 
-Edita `.env`: establece contraseñas distintas y propias en `DB_PASSWORD`, `MYSQL_ROOT_PASSWORD` y `APP_PASSWORD` (mínimo 12 caracteres). Define `DB_PORT` si 3306 está ocupado. El archivo está excluido de Git; no compartas sus valores.
+Edita `.env`: establece contraseñas propias en `DB_PASSWORD` y `MYSQL_ROOT_PASSWORD`. El acceso inicial de demostración es **usuario `admin`, contraseña `1234`**. Puedes configurar otra contraseña con `APP_PASSWORD` (mínimo 4 caracteres); para producción utiliza una contraseña larga y propia. Define `DB_PORT` si 3306 está ocupado. El archivo está excluido de Git; no compartas sus valores.
 
 Para MySQL con Docker:
 
@@ -64,7 +64,7 @@ Durante **En producción**, abre **Ver orden** y sigue el recuadro **Siguiente p
 npm run db:populate
 ```
 
-Después de instalar el esquema y los catálogos, este comando añade un conjunto ficticio amplio: 12 materiales, 8 modelos, 48 variantes, 12 trabajadores y 20 órdenes (cuatro por cada estado). Incluye lotes, recepciones/salidas, reservas, incidencias resueltas, horas y 22 presupuestos con versiones y estados de ejemplo. Las existencias superan los mínimos y los rechazos se concilian entre etapas. Completa únicamente los criterios del piloto que no existan, dejándolos pendientes con evidencia ficticia.
+Después de instalar el esquema, este comando prepara los catálogos y crea el usuario inicial si no existe (`admin` / `1234` por defecto; respeta `APP_USER` y `APP_PASSWORD`). Después añade un conjunto ficticio amplio: 12 materiales, 8 modelos, 48 variantes, 12 trabajadores y 20 órdenes (cuatro por cada estado). Incluye lotes, recepciones/salidas, reservas, incidencias resueltas, horas y 22 presupuestos con versiones y estados de ejemplo. Las existencias superan los mínimos y los rechazos se concilian entre etapas. Completa únicamente los criterios del piloto que no existan, dejándolos pendientes con evidencia ficticia.
 
 Para añadir una segunda edición independiente, sin borrar ni modificar los registros anteriores:
 
@@ -74,7 +74,7 @@ npm run db:populate:renew
 
 Esta edición usa códigos `DEMO-POB2-`. Repetir el comando no duplica datos. Para practicar con incidencias pendientes y alertas intencionales se puede usar `npm run db:populate -- --training` sobre una base que todavía no tenga esa edición; no cambia una demostración ya cargada.
 
-Los registros nuevos llevan códigos `DEMO-POB-` o identificación de demostración. No cambia los registros previos, no crea cuentas de acceso y no restablece contraseñas. La carga es transaccional y se registra en auditoría; repetirla no duplica registros. Si encuentra códigos de ese conjunto sin una carga confirmada, se detiene para evitar sobrescribirlos. No se ejecuta al iniciar el servidor.
+Los registros nuevos llevan códigos `DEMO-POB-` o identificación de demostración. No cambia los registros de negocio previos ni restablece contraseñas de cuentas existentes. Para restablecer el acceso a `1234`, configura `APP_PASSWORD=1234` en `.env` y ejecuta `npm run user:password`. La carga es transaccional y se registra en auditoría; repetirla no duplica registros. Si encuentra códigos de ese conjunto sin una carga confirmada, se detiene para evitar sobrescribirlos. No se ejecuta al iniciar el servidor.
 
 Los costos y nombres son ficticios. Las fechas de registro corresponden a la carga y las fechas programadas varían para explorar el seguimiento. Los ejemplos no representan producción real ni aprobación del piloto. Consulta [docs/datos-demostracion.md](docs/datos-demostracion.md) para las cantidades verificadas en el entorno.
 
