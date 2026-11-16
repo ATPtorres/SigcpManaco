@@ -179,6 +179,34 @@ const server = http.createServer(createApp(pool));
       "PASS navigation focus, keyboard cycle, Escape, close button, backdrop, scroll, routing and resize",
     );
 
+    await page.goto(`${origin}/#orders`);
+    await page.locator('#main h1').waitFor();
+    const progressState = await (await page.request.get(origin+'/api/state')).json();
+    const unfinished = progressState.orders.find(o=>o.state===1 && o.etapas.length>1 && o.etapas.find(e=>e.estado!=='Terminado')?.estado==='En producción');
+    assert.ok(unfinished);
+    await page.locator(`[data-action="detail"][data-id="${unfinished.id}"]`).first().click();
+    await page.locator('#modal [data-action="continue-stage"]').waitFor();
+    assert.equal(await page.locator('#modal [data-action="advance"]').count(),0);
+    assert.ok((await page.locator('#modal [role="status"]').innerText()).includes('Siguiente paso'));
+    assert.equal(await page.locator('#modal [data-action="start-stage"]').count(),0);
+    await page.locator('#modal [data-action="continue-stage"]').click();
+    await page.locator('#record-form [name="cantidad_aceptada"]').waitFor();
+    await page.keyboard.press('Escape');
+    console.log('PASS incomplete orders guide the next stage and do not offer premature quality approval');
+    await page.locator(`[data-action="detail"][data-id="${unfinished.id}"]`).first().click();
+    await page.locator('#modal [data-action="order-plan"]').click();
+    await page.locator('#deadline-advice').waitFor();
+    assert.ok((await page.locator('#modal .note').innerText()).includes('Plazo recomendado'));
+    await page.locator('#record-form [name="fin_programado"]').fill('2000-01-01');
+    assert.ok((await page.locator('#deadline-advice').innerText()).includes('Alerta'));
+    await page.keyboard.press('Escape');
+    await page.locator(`[data-action="detail"][data-id="${unfinished.id}"]`).first().click();
+    await page.locator('#modal [data-action="stage-plan"]').first().click();
+    await page.locator('#record-form [name="inicio_programado"]').waitFor();
+    assert.ok(await page.locator('#record-form [name="fin_programado"]').isVisible());
+    await page.keyboard.press('Escape');
+    for(const name of ['usuario','tecnico'])assert.equal((await page.request.get(origin+'/manuales/'+name)).status(),200);
+    console.log('PASS deadline alerts/recommendations, stage dates and user/technical manuals');
     for (const [route, action] of [
       ["orders", "new-order"],
       ["products", "new-product"],
@@ -204,6 +232,18 @@ const server = http.createServer(createApp(pool));
         false,
       );
     }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${origin}/#orders`);
+    await page.locator('[data-action="records"]').click();
+    await page.locator('#registry-search').waitFor();
+    await page.locator('#registry-search input').fill('DEMO-POB2-');
+    await page.locator('#registry-search button').click();
+    await page.waitForFunction(()=>document.querySelector('dialog [role="status"]')?.textContent.includes('20 registros'));
+    assert.ok(await page.locator('dialog').evaluate(el=>el.scrollWidth<=el.clientWidth+1));
+    await page.evaluate(axe.source);
+    assert.deepEqual((await page.evaluate(()=>axe.run(document.querySelector('dialog')))).violations.map(v=>v.id),[]);
+    await page.keyboard.press('Escape');
+    console.log('PASS paginated history search, mobile dialog and automatic accessibility');
     await page.setViewportSize({ width: 1024, height: 900 });
     const go = async (route) => {
       await page.goto(`${origin}/#${route}`);
@@ -262,6 +302,8 @@ const server = http.createServer(createApp(pool));
     const model = state.refs.models.find((m) => m.codigo === "MOD-UI-" + stamp);
     await go("products");
     await page.locator('[data-action="new-product"]').click();
+    await choose('imagen_url','/assets/shoes/oxford-negro.webp');
+    await page.waitForFunction(()=>document.querySelector('#image-preview')?.naturalWidth>0);
     await fill("sku", "SKU-UI-" + stamp);
     await choose("modelo_id", model.modelo_id);
     await choose("material_0", material.material_id);
@@ -271,6 +313,7 @@ const server = http.createServer(createApp(pool));
     await save();
     state = await read();
     const product = state.products.find((p) => p.sku === "SKU-UI-" + stamp);
+    assert.equal(product.image_url,'/assets/shoes/oxford-negro.webp');
     await go("orders");
     await page.locator('[data-action="new-order"]').click();
     await choose("producto_id", product.producto_id);
@@ -488,6 +531,11 @@ const server = http.createServer(createApp(pool));
       .toString("base64url");
     await go("users");
     await page.locator('[data-action="new-user"]').click();
+    assert.equal(await page.locator('#record-form [name="password"]').getAttribute('type'),'text');
+    await page.locator('[data-action="toggle-password"]').click();
+    assert.equal(await page.locator('#record-form [name="password"]').getAttribute('type'),'password');
+    await page.locator('[data-action="toggle-password"]').click();
+    assert.equal(await page.locator('#record-form [name="password"]').getAttribute('type'),'text');
     await fill("nombre", "cuenta-ui-" + stamp);
     await choose("rol", "Consulta");
     await fill("password", accountPassword);

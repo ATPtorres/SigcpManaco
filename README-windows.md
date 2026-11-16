@@ -13,6 +13,10 @@ iniciar.cmd
 
 El archivo inicia MySQL y el backend en segundo plano, comprueba `/api/health` y abre la página. Los procesos siguen ejecutándose al cerrar CMD. No hace falta Apache para usar la dirección del puerto 3000.
 
+El backend se inicia mediante un supervisor que lo recupera si el proceso termina inesperadamente. Comprueba su estado cada minuto y registra avisos de error en JSON. Una caída de MySQL se informa sin reiniciar continuamente Node. Los diagnósticos quedan en `.runtime/backend.log`, `.runtime/backend-error.log` y `.runtime/supervisor-status.json`.
+
+Mientras el supervisor esté encendido, crea una copia de negocio por día en `.runtime/backups/`, con suma SHA-256. La primera copia se crea tras verificar el servidor; los días siguientes, al primer control del nuevo día en la zona operativa. Si el equipo está apagado no se ejecuta; se recupera la copia al iniciar. Para crearla o verificarla manualmente: `npm run db:backup:daily`. Estas copias excluyen usuarios y sesiones. Conserva también copias MySQL completas y una copia externa según el procedimiento del README principal.
+
 Si Apache está encendido, la dirección anterior `http://localhost/SIGCP%20manaco/` redirige al backend. `.htaccess` impide servir por Apache los archivos privados, los datos MySQL y `.env`.
 
 ## Acceso

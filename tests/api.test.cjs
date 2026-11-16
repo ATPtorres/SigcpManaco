@@ -391,7 +391,7 @@ test("Labor keeps the applied rate, checks skills and enforces daily hours", asy
   const data = {
     detalle_etapa_id: o.etapas[0].detalle_etapa_id,
     trabajador_id: w.trabajador_id,
-    fecha: "2026-10-21",
+    fecha: require('../server/time.cjs').businessDate(),
     horas_trabajadas: 2,
   };
   const record = await ok("/api/labor", data);
@@ -687,7 +687,7 @@ test("Imported pending orders consume once; active and quality orders continue w
       await request("/api/labor", {
         detalle_etapa_id: o.etapas[0].detalle_etapa_id,
         trabajador_id: worker.trabajador_id,
-        fecha: "2026-10-21",
+        fecha: require('../server/time.cjs').businessDate(),
         horas_trabajadas: 1,
       })
     ).status,
@@ -758,6 +758,9 @@ test("Role permissions, account management and session revocation are enforced s
   const oc = await login("operador-prueba"),
     vc = await login("consulta-prueba");
   assert.equal((await as(vc, "/api/state")).status, 200);
+  assert.equal((await as(vc, '/api/records/audit')).status,403);
+  assert.equal((await as(oc, '/api/records/audit')).status,403);
+  assert.equal((await as(vc, '/api/records/orders?limit=2')).status,200);
   assert.equal((await as(vc, "/api/state")).data.users, undefined);
   for (const path of [
     "/api/products",
@@ -911,9 +914,9 @@ test("Population adds coherent fictional data and preserves every existing busin
       assert.ok(o.evidence);
       assert.ok(
         o.etapas.every(
-          (e) =>
+          (e,index) =>
             e.estado === "Terminado" &&
-            e.cantidad_aceptada + e.cantidad_rechazada === o.quantity,
+            e.cantidad_aceptada + e.cantidad_rechazada === (index ? o.etapas[index-1].cantidad_aceptada : o.quantity),
         ),
       );
       assert.ok(
@@ -924,6 +927,133 @@ test("Population adds coherent fictional data and preserves every existing busin
     }
   assert.equal((await populateDemo(pool)).alreadyCreated, true);
   assert.deepEqual((await backup(pool)).tables, after.tables);
+});
+test('Renewed demonstration is repeatable, stocked and reconciles every stage', async()=>{
+  const {populateDemo}=require('../scripts/populate-demo.cjs');
+  const before=(await snapshot()).orders.length;
+  const result=await populateDemo(pool,{edition:'v2'});
+  assert.equal(result.orders,20);
+  const data=await snapshot(), added=data.orders.filter(o=>o.numero_orden.startsWith('DEMO-POB2-'));
+  assert.equal(data.orders.length,before+20);
+  assert.equal(added.length,20);
+  for(const o of added) for(const [i,e] of o.etapas.entries()) if(e.estado==='Terminado')
+    assert.equal(e.cantidad_aceptada+e.cantidad_rechazada,i ? o.etapas[i-1].cantidad_aceptada : o.quantity);
+  assert.ok(data.materials.filter(m=>m.codigo.startsWith('DEMO-POB2-')).every(m=>m.stock-m.reserved>m.min));
+  assert.ok(data.incidents.filter(i=>added.some(o=>o.orden_id===i.orden_id)).every(i=>i.estado==='Resuelta'));
+  assert.equal((await populateDemo(pool,{edition:'v2'})).alreadyCreated,true);
+  assert.equal((await snapshot()).orders.length,before+20);
+});
+test('Daily business backup verifies checksum, is repeatable, and excludes credentials',async()=>{
+  const os=require('node:os'),path=require('node:path');
+  const {scheduledBackup}=require('../scripts/backup-scheduled.cjs');
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'manaco-backup-test-'));
+  try {
+    const first=await scheduledBackup(pool,directory);
+    assert.equal(first.alreadyCreated,false);
+    assert.equal((await scheduledBackup(pool,directory)).alreadyCreated,true);
+    const data=JSON.parse(fs.readFileSync(first.file,'utf8'));
+    assert.equal(data.tables.USUARIO,undefined);assert.equal(data.tables.SESION,undefined);
+    fs.appendFileSync(first.file,'tampered');
+    await assert.rejects(scheduledBackup(pool,directory),/SHA-256/);
+  } finally {
+    // Remove only the exact files created in this test's unique temp directory.
+    for(const name of fs.readdirSync(directory))fs.unlinkSync(path.join(directory,name));
+    fs.rmdirSync(directory);
+  }
+});
+test('Rejected pairs cannot reappear and later stages consume only accepted input', async () => {
+  const id = await order(10); await start(id);
+  const o = (await snapshot()).orders.find(o=>o.orden_id===id);
+  await ok(`/api/order-stages/${o.etapas[0].detalle_etapa_id}/finish`, {cantidad_aceptada:8,cantidad_rechazada:2});
+  await ok(`/api/order-stages/${o.etapas[1].detalle_etapa_id}/start`, {});
+  assert.equal((await request(`/api/order-stages/${o.etapas[1].detalle_etapa_id}/finish`, {cantidad_aceptada:10,cantidad_rechazada:0})).status,400);
+  await ok(`/api/order-stages/${o.etapas[1].detalle_etapa_id}/finish`, {cantidad_aceptada:8,cantidad_rechazada:0});
+  const stock = (await snapshot()).materials.find(m=>m.material_id===initial.materials[1].material_id).stock;
+  await ok(`/api/order-stages/${o.etapas[2].detalle_etapa_id}/start`, {});
+  const requirement=o.requirements.find(r=>r.ficha_etapa_id===o.etapas[2].ficha_etapa_id && r.material_id===initial.materials[1].material_id);
+  assert.equal((await snapshot()).materials.find(m=>m.material_id===initial.materials[1].material_id).stock,stock-8*requirement.cantidad_neta_por_par*(1+requirement.porcentaje_merma/100));
+});
+test('A fully rejected batch propagates zero input without further material consumption', async () => {
+  const id=await order(2); await start(id);
+  const o=(await snapshot()).orders.find(o=>o.orden_id===id);
+  await ok(`/api/order-stages/${o.etapas[0].detalle_etapa_id}/finish`,{cantidad_aceptada:0,cantidad_rechazada:2});
+  const before=(await snapshot()).movements.length;
+  for(const stage of o.etapas.slice(1)) {
+    await ok(`/api/order-stages/${stage.detalle_etapa_id}/start`,{});
+    await ok(`/api/order-stages/${stage.detalle_etapa_id}/finish`,{cantidad_aceptada:0,cantidad_rechazada:0});
+  }
+  assert.equal((await snapshot()).movements.length,before);
+});
+test('Labor rejects future and pre-start dates, accepts today in operational timezone', async()=>{
+  const id=await order(2); await start(id);
+  const o=(await snapshot()).orders.find(o=>o.orden_id===id);
+  const body={detalle_etapa_id:o.etapas[0].detalle_etapa_id,trabajador_id:initial.workers[0].trabajador_id,horas_trabajadas:0.1};
+  for(const fecha of ['2099-01-01','2000-01-01']) assert.equal((await request('/api/labor',{...body,fecha})).status,400);
+  await ok('/api/labor',{...body,fecha:require('../server/time.cjs').businessDate()});
+  const {businessDate}=require('../server/time.cjs');
+  assert.equal(businessDate(new Date('2026-11-12T02:00:00Z')),'2026-11-11');
+});
+test('Paginated records filter and validate input; audit captures changes without passwords', async()=>{
+  const page=await ok('/api/records/orders?limit=2&page=1&state=Pendiente');
+  assert.ok(page.items.length<=2); assert.ok(page.items.every(o=>o.estado==='Pendiente'));
+  const next=await ok('/api/records/orders?limit=2&page=2&state=Pendiente');
+  assert.ok(next.items.every(o=>!page.items.some(p=>p.orden_id===o.orden_id)));
+  assert.equal((await request('/api/records/orders?limit=1000')).status,400);
+  const compact=await ok('/api/state?compact=1');
+  assert.ok(compact.movements.length<=50); assert.ok(compact.orders.every(o=>o.history.length===0));
+  const id=await order(1);
+  const audit=await ok('/api/records/audit?limit=100');
+  assert.ok(audit.items.some(a=>a.entidad==='ORDEN_FABRICACION' && a.registro_id===String(id) && a.cambios.despues));
+  assert.equal(JSON.stringify(audit.items).includes('password_hash'),false);
+});
+test('Product images match model and color, upload securely and reject external paths',async()=>{
+  const catalog=require('../assets/shoes/catalog.json');
+  const {imageFor}=require('../server/images.cjs');
+  assert.equal(catalog.length,20);
+  assert.ok(imageFor('Oxford Andino (demo)','Negro').includes('oxford-negro'));
+  assert.notEqual(imageFor('Mocasín Urbano','Café'),imageFor('Oxford Andino','Café'));
+  for(const image of catalog) {
+    const r=await fetch(origin+image.src);assert.equal(r.status,200);assert.match(r.headers.get('content-type'),/image\/webp/);
+  }
+  assert.equal((await fetch(origin+'/assets/shoes/source/clasico-negro.png')).status,404);
+  const image=catalog[0];
+  const data=fs.readFileSync(require('node:path').join(__dirname,'..',image.src)).toString('base64');
+  const uploaded=await ok('/api/images',{type:'image/webp',data});
+  try {assert.equal((await fetch(origin+uploaded.id)).status,200);}finally {fs.unlinkSync(require('node:path').join(__dirname,'..',uploaded.id));}
+  assert.equal((await request('/api/images',{type:'image/png',data:Buffer.from('invalid').toString('base64')})).status,400);
+  assert.equal((await request('/api/images',{type:'image/svg+xml',data:'xxx'})).status,400);
+  assert.equal((await request('/api/images',{type:'image/webp',data},'POST',false)).status,401);
+  const product=(await snapshot()).products[0];
+  const body={sku:product.sku,modelo_id:product.modelo_id,talla_id:product.talla_id,color_id:product.color_id,activo:true,etapas:product.ficha.etapas.map(e=>({etapa_id:e.etapa_id,secuencia:e.secuencia,minutos_estimados_por_par:e.minutos_estimados_por_par,costo_mano_obra_estimado_por_par:e.costo_mano_obra_estimado_por_par,materiales:e.materiales.map(r=>({material_id:r.material_id,cantidad_neta_por_par:r.cantidad_neta_por_par,porcentaje_merma:r.porcentaje_merma}))}))};
+  assert.equal((await request('/api/products/'+product.producto_id,{...body,imagen_url:'https://evil.example/a.svg'},'PUT')).status,400);
+  await ok('/api/products/'+product.producto_id,{...body,imagen_url:image.src},'PUT');
+  assert.equal((await snapshot()).products.find(p=>p.producto_id===product.producto_id).image_url,image.src);
+  const version=(await snapshot()).products.find(p=>p.producto_id===product.producto_id).ficha.version;
+  await ok(`/api/products/${product.producto_id}/image`,{imagen_url:catalog[1].src,motivo:'Prueba de imagen independiente'},'PUT');
+  assert.equal((await snapshot()).products.find(p=>p.producto_id===product.producto_id).ficha.version,version);
+  await ok(`/api/models/${product.modelo_id}/image`,{imagen_url:image.src,motivo:'Foto del modelo'},'PUT');
+});
+test('Order codes and deadlines change with reason, recommendation and concurrency checks',async()=>{
+  const id=await order(2);let o=(await snapshot()).orders.find(o=>o.orden_id===id);
+  const body={numero_orden:'PLAN-PRUEBA-'+id,fin_programado:o.recommendation.fecha,fin_esperado:o.due,motivo:'Planificación comprobada',aceptar_plazo_corto:false};
+  await ok(`/api/orders/${id}/plan`,body,'PUT');
+  o=(await snapshot()).orders.find(o=>o.orden_id===id);assert.equal(o.numero_orden,body.numero_orden);assert.equal(o.due,body.fin_programado);
+  assert.equal((await request(`/api/orders/${id}/plan`,body,'PUT')).status,409);
+  const short={...body,fin_esperado:o.due,fin_programado:require('../server/time.cjs').businessDate()};
+  assert.equal((await request(`/api/orders/${id}/plan`,short,'PUT')).status,400);
+  await ok(`/api/orders/${id}/plan`,{...short,aceptar_plazo_corto:true},'PUT');
+  assert.equal((await snapshot()).orders.find(o=>o.orden_id===id).orden_id,id);
+});
+test('Stage schedules respect order boundaries and chronological sequence without altering actual dates',async()=>{
+  const id=await order(2),o=(await snapshot()).orders.find(o=>o.orden_id===id);
+  const [first,second]=o.etapas;
+  const body={inicio_programado:'2026-10-22',fin_programado:'2026-10-24',motivo:'Programación de pruebas'};
+  await ok(`/api/order-stages/${first.detalle_etapa_id}/plan`,body,'PUT');
+  assert.equal((await request(`/api/order-stages/${second.detalle_etapa_id}/plan`,{...body,inicio_programado:'2026-10-23'},'PUT')).status,400);
+  assert.equal((await request(`/api/order-stages/${second.detalle_etapa_id}/plan`,{...body,fin_programado:'2026-11-20'},'PUT')).status,400);
+  await ok(`/api/order-stages/${second.detalle_etapa_id}/plan`,{...body,inicio_programado:'2026-10-24',fin_programado:'2026-10-25'},'PUT');
+  const stage=(await snapshot()).orders.find(o=>o.orden_id===id).etapas[0];
+  assert.equal(stage.inicio_real,null);assert.equal(stage.fin_real,null);assert.equal(stage.inicio_programado,body.inicio_programado);
 });
 test("Pilot and audit are persisted with the authenticated actor; logout revokes the session", async () => {
   await ok(

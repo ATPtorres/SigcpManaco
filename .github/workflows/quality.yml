@@ -1,0 +1,39 @@
+name: Pruebas y seguridad
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-only-root-password
+          MYSQL_DATABASE: sigcp_manaco_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s --health-timeout=5s --health-retries=15
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: sigcp_manaco
+      DB_TEST_NAME: sigcp_manaco_test
+      DB_USER: root
+      DB_PASSWORD: ci-only-root-password
+      APP_USER: admin
+      APP_PASSWORD: ci-only-application-password
+      APP_TIME_ZONE: America/La_Paz
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm audit --audit-level=high
+      - run: npm test
+      - run: npm run test:interface

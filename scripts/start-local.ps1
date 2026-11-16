@@ -22,8 +22,8 @@ for ($attempt = 0; $attempt -lt 30; $attempt++) {
 if (!$mysqlReady) { throw 'MySQL no inició. Revisa .runtime\mysql-error.log.' }
 if (!(Test-LocalPort 3000)) {
     $nodeExe = (Get-Command node.exe).Source
-    $backendProcess = Start-Process -FilePath $nodeExe -ArgumentList 'server/index.cjs' -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runtimeDir 'backend.log') -RedirectStandardError (Join-Path $runtimeDir 'backend-error.log')
-    $backendProcess.Id | Set-Content (Join-Path $runtimeDir 'backend-process.pid')
+    $backendProcess = Start-Process -FilePath $nodeExe -ArgumentList 'scripts/supervise.cjs' -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runtimeDir 'backend.log') -RedirectStandardError (Join-Path $runtimeDir 'backend-error.log')
+    $backendProcess.Id | Set-Content (Join-Path $runtimeDir 'supervisor-process.pid')
 }
 $backendReady = $false
 for ($attempt = 0; $attempt -lt 30; $attempt++) {

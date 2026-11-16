@@ -1,0 +1,142 @@
+[
+  {
+    "id": "clasico-negro",
+    "model": "Clásico ejecutivo",
+    "color": "Negro",
+    "prompt": "Create a high-resolution photorealistic ecommerce catalog photograph for a shoe model called Clásico ejecutivo, formal men's executive dress shoe. One single BLACK polished genuine leather derby shoe, subtle cap-toe seams, black laces and thin black formal sole with low stacked heel. Strict true lateral side profile, toe pointing right, entire shoe visible, no perspective angle, no pair, no feet. Pure solid WHITE background (#FFFFFF), very soft minimal natural contact shadow, professional softbox lighting and crisp realistic leather grain and stitching. Wide landscape composition around 3:2, product centered with 12 percent white breathing space all around, consistent neutral catalog framing. No logo, no text, no label, no watermark. Asset for an elegant production management dashboard, realistic product-mockup.",
+    "src": "/assets/shoes/clasico-negro.webp"
+  },
+  {
+    "id": "urban-cafe",
+    "model": "Urban casual",
+    "color": "Café",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Urban casual\": coffee brown smooth leather casual low-top lace-up shoe, understated tan rubber sole. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/urban-cafe.webp"
+  },
+  {
+    "id": "sport-azul",
+    "model": "Sport active",
+    "color": "Azul",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Sport active\": navy blue technical mesh running sneaker with white cushioned athletic sole, blue laces. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/sport-azul.webp"
+  },
+  {
+    "id": "escolar-clasico-negro",
+    "model": "Escolar clásico",
+    "color": "Negro",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Escolar clásico\": black polished leather traditional sturdy school lace-up shoe, rounded toe and durable black sole. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/escolar-clasico-negro.webp"
+  },
+  {
+    "id": "oxford-negro",
+    "model": "Oxford Andino",
+    "color": "Negro",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Oxford Andino\": black premium leather formal Oxford dress shoe, CLOSED lacing, refined cap toe, slim black formal sole and low heel. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/oxford-negro.webp"
+  },
+  {
+    "id": "oxford-cafe",
+    "model": "Oxford Andino",
+    "color": "Café",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Oxford Andino\": dark coffee brown premium leather formal Oxford dress shoe, CLOSED lacing, refined cap toe, brown formal sole and low heel. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/oxford-cafe.webp"
+  },
+  {
+    "id": "mocasin-cafe",
+    "model": "Mocasín Urbano",
+    "color": "Café",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Mocasín Urbano\": coffee brown suede penny loafer, slip-on without laces, classic saddle strap and low dark brown sole. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/mocasin-cafe.webp"
+  },
+  {
+    "id": "mocasin-azul",
+    "model": "Mocasín Urbano",
+    "color": "Azul",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Mocasín Urbano\": navy blue suede penny loafer, slip-on without laces, classic saddle strap and low dark brown sole. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/mocasin-azul.webp"
+  },
+  {
+    "id": "botin-azul",
+    "model": "Botín Caminante",
+    "color": "Azul",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Botín Caminante\": navy blue nubuck leather casual ankle-height walking boot, blue laces, padded collar, sturdy gum rubber hiking-inspired outsole. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/botin-azul.webp"
+  },
+  {
+    "id": "botin-blanco",
+    "model": "Botín Caminante",
+    "color": "Blanco",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Botín Caminante\": clean white leather casual ankle-height walking boot, white laces, padded collar, sturdy light gray rubber walking outsole. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/botin-blanco.webp"
+  },
+  {
+    "id": "activa-blanco",
+    "model": "Zapatilla Activa",
+    "color": "Blanco",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Zapatilla Activa\": white breathable mesh and white leather low-top athletic training sneaker, white laces, sculpted white cushioned sole. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/activa-blanco.webp"
+  },
+  {
+    "id": "activa-gris",
+    "model": "Zapatilla Activa",
+    "color": "Gris",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Zapatilla Activa\": medium gray breathable mesh and gray leather low-top athletic training sneaker, gray laces, sculpted white cushioned sole. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/activa-gris.webp"
+  },
+  {
+    "id": "escolar-gris",
+    "model": "Escolar Resistente",
+    "color": "Gris",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Escolar Resistente\": charcoal gray robust leather school shoe, reinforced rounded toe and gray laces, thick durable black rubber sole. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/escolar-gris.webp"
+  },
+  {
+    "id": "escolar-negro",
+    "model": "Escolar Resistente",
+    "color": "Negro",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Escolar Resistente\": black robust leather school shoe, reinforced rounded toe and black laces, thick durable black rubber sole. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/escolar-negro.webp"
+  },
+  {
+    "id": "trabajo-cafe",
+    "model": "Bota de Trabajo",
+    "color": "Café",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Bota de Trabajo\": coffee brown full-grain rugged leather industrial work boot, ankle height, padded collar, sturdy brown laces, reinforced rounded toe, deep black lug sole, no certification marks. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/trabajo-cafe.webp"
+  },
+  {
+    "id": "trabajo-negro",
+    "model": "Bota de Trabajo",
+    "color": "Negro",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Bota de Trabajo\": black full-grain rugged leather industrial work boot, ankle height, padded collar, sturdy black laces, reinforced rounded toe, deep black lug sole, no certification marks. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/trabajo-negro.webp"
+  },
+  {
+    "id": "ligero-cafe",
+    "model": "Casual Ligero",
+    "color": "Café",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Casual Ligero\": coffee brown soft suede lightweight low-top casual lace-up sneaker, minimalist stitching, very lightweight cream rubber sole. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/ligero-cafe.webp"
+  },
+  {
+    "id": "ligero-azul",
+    "model": "Casual Ligero",
+    "color": "Azul",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Casual Ligero\": navy blue soft suede lightweight low-top casual lace-up sneaker, minimalist stitching, very lightweight cream rubber sole. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/ligero-azul.webp"
+  },
+  {
+    "id": "flexible-azul",
+    "model": "Deportivo Flexible",
+    "color": "Azul",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Deportivo Flexible\": navy blue seamless engineered knit flexible athletic sneaker, sock-like collar, blue laces, segmented white flexible foam sole. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/flexible-azul.webp"
+  },
+  {
+    "id": "flexible-blanco",
+    "model": "Deportivo Flexible",
+    "color": "Blanco",
+    "prompt": "Use case: product-mockup. Create a high resolution photorealistic studio ecommerce photograph of ONE shoe for the model \"Deportivo Flexible\": white seamless engineered knit flexible athletic sneaker, sock-like collar, white laces, segmented white flexible foam sole. Strict true lateral outer side profile with the toe pointing RIGHT, heel left, camera at shoe mid-height, no three-quarter perspective. One single shoe, full silhouette visible, no feet, no people, no pair. Pure solid WHITE (#ffffff) seamless background, restrained natural soft contact shadow, realistic material texture and detailed stitching, professional neutral softbox illumination. Landscape 3:2 composition with the shoe centered and 12 percent white margin on every edge, consistent catalog framing. The shoe should occupy about 75 percent of width, perfectly horizontal. No logos, no text, no graphics, no watermarks, no labels. Premium realistic product photography suitable for an elegant inventory dashboard.",
+    "src": "/assets/shoes/flexible-blanco.webp"
+  }
+]

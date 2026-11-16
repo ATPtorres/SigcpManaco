@@ -8,10 +8,18 @@ const s = require("./service.cjs");
 const { state } = require("./state.cjs");
 const auth = require("./auth.cjs");
 const legacy = require("./legacy.cjs");
+const { auditTarget, clean } = require('./audit.cjs');
 function createApp(pool) {
   const app = express();
+  if (process.env.TRUST_PROXY === 'loopback') app.set('trust proxy','loopback');
   app.disable("x-powered-by");
   app.use((req, res, next) => {
+    const start = Date.now();
+    const requestId = crypto.randomUUID();
+    res.set('X-Request-ID', requestId);
+    res.on('finish', () => {
+      if (process.env.REQUEST_LOG === 'true') console.log(JSON.stringify({ time: new Date().toISOString(), requestId, method: req.method, path: req.path, status: res.statusCode, durationMs: Date.now()-start }));
+    });
     res.set({
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "same-origin",
@@ -29,6 +37,7 @@ function createApp(pool) {
     next();
   });
   app.use("/api/legacy", express.json({ limit: "10mb" }));
+  app.use('/api/images',express.json({limit:'3mb'}));
   app.use(express.json({ limit: "1mb" }));
   app.get("/api/health", async (req, res) => {
     try {
@@ -92,7 +101,7 @@ function createApp(pool) {
       await transaction(
         pool,
         async (c) => {
-          const data = await state(c);
+          const data = await state(c, { compact: req.query.compact === '1' });
           if (req.user.rol === "Administrador")
             data.users = await s.rows(
               c,
@@ -106,12 +115,30 @@ function createApp(pool) {
   );
   const mutation = (label, fn) => async (req, res) => {
     const result = await transaction(pool, async (c) => {
+      const before = await auditTarget(c, req);
       const value = await fn(c, req);
-      await s.insert(c, "AUDITORIA", { accion: label, actor: req.user.nombre });
+      const after = await auditTarget(c, req, value);
+      await s.insert(c, "AUDITORIA", { accion: label, actor: req.user.nombre,
+        entidad: after.entidad, registro_id: after.registro_id,
+        cambios: JSON.stringify({ antes: before.row, despues: after.row, solicitud: req.path==='/api/images'?{tipo:req.body.type}:clean(req.body) }),
+        motivo: String(req.body?.motivo || req.get('X-Change-Reason') || label).slice(0,500) });
       return value;
     });
     res.status(200).json({ ok: true, id: result ?? null });
   };
+  app.get('/api/records/:type', require('./records.cjs').records(pool));
+  app.post('/api/images',mutation('Imagen de producto cargada',async(c,r)=>require('./images.cjs').saveUpload(r.body)));
+  for(const [resource,table,keyColumn] of [['products','PRODUCTO_CALZADO','producto_id'],['models','MODELO_CALZADO','modelo_id']]) {
+    app.put(`/api/${resource}/:id/image`,mutation('Imagen de catálogo actualizada',async(c,r)=>{
+      if(r.user.rol!=='Administrador')s.fail('Se requiere administrador.',403);
+      const d=schemas.picture.parse(r.body),id=key(r.params.id);
+      require('./images.cjs').checkImage(d.imagen_url);
+      await s.one(c,`SELECT ${keyColumn} FROM ${table} WHERE ${keyColumn}=? FOR UPDATE`,[id]);
+      await s.update(c,table,keyColumn,id,{imagen_url:d.imagen_url});return id;
+    }));
+  }
+  app.put('/api/orders/:id/plan',mutation('Código y plazo de orden actualizado',(c,r)=>s.planOrder(c,key(r.params.id),schemas.orderPlan.parse(r.body),r.user.nombre)));
+  app.put('/api/order-stages/:id/plan',mutation('Fechas de etapa actualizadas',(c,r)=>s.planStage(c,key(r.params.id),schemas.stagePlan.parse(r.body),r.user.nombre)));
   app.post(
     "/api/users",
     mutation("Usuario creado", (c, r) =>
@@ -131,7 +158,9 @@ function createApp(pool) {
         ? catalogs[req.params.type]
         : null;
       if (!def) s.fail("Catálogo desconocido.", 404);
-      return s.insert(c, def.table, def.schema.parse(req.body));
+      const data=def.schema.parse(req.body);
+      if(req.params.type==='models')require('./images.cjs').checkImage(data.imagen_url);
+      return s.insert(c, def.table, data);
     }),
   );
   app.post(
@@ -288,6 +317,15 @@ function createApp(pool) {
     res.status(404).json({ error: "Operación no encontrada." }),
   );
   const root = path.join(__dirname, "..");
+  app.get('/assets/shoes/:file',(req,res,next)=>{
+    if(!/^[a-z0-9-]+\.webp$/.test(req.params.file))return res.status(404).end();
+    res.set('Cache-Control','public, max-age=86400').sendFile(path.join(root,'assets/shoes',req.params.file),error=>{if(error&&!res.headersSent)res.status(404).json({error:'Imagen no encontrada.'});});
+  });
+  app.get('/assets/uploads/:file',(req,res)=>{
+    if(!/^[a-f0-9]{32}\.(png|jpg|webp)$/.test(req.params.file))return res.status(404).end();
+    res.set('Cache-Control','public, max-age=86400').sendFile(path.join(root,'assets/uploads',req.params.file),error=>{if(error&&!res.headersSent)res.status(404).json({error:'Imagen no encontrada.'});});
+  });
+  for(const manual of ['usuario','tecnico'])app.get('/manuales/'+manual,(req,res)=>res.sendFile(path.join(root,'docs/manual-'+manual+'.html')));
   for (const file of ["index.html", "app.js", "styles.css"])
     app.get("/" + file, (req, res) => res.sendFile(path.join(root, file)));
   app.get("/", (req, res) => res.sendFile(path.join(root, "index.html")));

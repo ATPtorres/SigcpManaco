@@ -3,7 +3,10 @@ const s = require("../server/service.cjs");
 const MARKER = "Carga DEMO-POB-V1 completada";
 const PREFIX = "DEMO-POB-";
 const round = (n) => Math.round(n * 10000) / 10000;
-async function populateDemo(pool) {
+async function populateDemo(pool, { edition = 'v1', training = false } = {}) {
+  if (!['v1','v2'].includes(edition)) throw Error('Edición de demostración desconocida.');
+  const PREFIX = edition === 'v1' ? 'DEMO-POB-' : 'DEMO-POB2-';
+  const MARKER = `Carga DEMO-POB-${edition.toUpperCase()} completada`;
   return transaction(pool, async (c) => {
     await s.one(
       c,
@@ -136,8 +139,8 @@ async function populateDemo(pool) {
       ["Cordones", "pares", 2.5, 5000, 200],
       ["Hebillas", "unidades", 1.8, 3000, 100],
       ["Cajas de empaque", "unidades", 3, 5000, 300],
-      ["Refuerzo termoplástico", "m²", 18, 30, 50],
-      ["Pigmento de acabado", "litros", 45, 5, 20],
+      ["Refuerzo termoplástico", "m²", 18, training ? 30 : 600, 50],
+      ["Pigmento de acabado", "litros", 45, training ? 5 : 200, 20],
     ];
     const materials = [];
     for (const [i, [name, unit, cost, stock, min]] of specs.entries()) {
@@ -176,7 +179,7 @@ async function populateDemo(pool) {
         codigo_lote: PREFIX + "LOTE-" + String(i + 1).padStart(2, "0") + "-A",
         ubicacion_id: locations[i % 2],
         motivo:
-          "Salida de muestra ficticia; saldo bajo mínimo intencional para mostrar alertas",
+          "Salida de muestra ficticia de control de material",
       });
     const workerNames = [
       "Camila Ríos",
@@ -337,6 +340,7 @@ async function populateDemo(pool) {
         [order],
       );
       const recipe = recipes.get(product);
+      let received = quantity;
       if (target > 0) {
         await s.advance(c, order, { estado_esperado: "Pendiente" }, actor);
         const pauseAt = Math.floor(i / 5) % 4;
@@ -357,9 +361,9 @@ async function populateDemo(pool) {
               responsable_id: worker,
               severidad: i % 2 ? "Media" : "Alta",
               costo_estimado_impacto: 15 + i,
-              estado: i % 2 ? "En atención" : "Abierta",
+              estado: training ? (i % 2 ? "En atención" : "Abierta") : 'Resuelta',
               resolucion:
-                i % 2 ? "Ejemplo: revisión iniciada; solución pendiente." : "",
+                training ? (i % 2 ? "Ejemplo: revisión iniciada; solución pendiente." : "") : 'DEMO: ajuste verificado; producción habilitada.',
             });
             break;
           }
@@ -383,16 +387,17 @@ async function populateDemo(pool) {
                 "Ejemplo ficticio: tensión ajustada y muestra revisada.",
             });
           }
-          const rejected = j === 3 && i % 3 === 0 ? 2 : 0;
+          const rejected = (j === 0 || j === 3) && i % 3 === 0 ? 2 : 0;
           await s.finishStage(
             c,
             step.detalle_etapa_id,
             {
-              cantidad_aceptada: quantity - rejected,
+              cantidad_aceptada: received - rejected,
               cantidad_rechazada: rejected,
             },
             actor,
           );
+          received -= rejected;
         }
         if (target >= 2) {
           await s.advance(
@@ -410,8 +415,8 @@ async function populateDemo(pool) {
               responsable_id: worker,
               severidad: "Media",
               costo_estimado_impacto: null,
-              estado: "Abierta",
-              resolucion: "",
+              estado: training ? 'Abierta' : 'Resuelta',
+              resolucion: training ? '' : 'DEMO: inspección final completada y verificada.',
             });
           if (target >= 3)
             await s.advance(
@@ -453,7 +458,7 @@ async function populateDemo(pool) {
             cantidad_pendiente: round(
               requirement.cantidad_neta_por_par *
                 (1 + requirement.porcentaje_merma / 100) *
-                quantity *
+                received *
                 0.5,
             ),
           });
@@ -543,7 +548,7 @@ async function populateDemo(pool) {
 }
 if (require.main === module) {
   const pool = createPool();
-  populateDemo(pool)
+  populateDemo(pool, { edition: process.argv.includes('--renew') ? 'v2' : 'v1', training: process.argv.includes('--training') })
     .then((r) => console.log(JSON.stringify(r, null, 2)))
     .catch((e) => {
       console.error(e.message);

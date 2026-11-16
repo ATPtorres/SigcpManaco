@@ -56,13 +56,23 @@ La carga demo rechaza una base que ya tenga materiales. Nunca se ejecuta automá
 
 Usa **Actualizar** para consultar los cambios de otras sesiones. No se simula una escritura local cuando el servidor falla. Los estados generales de la orden son Pendiente → En producción → Control de calidad → Terminado → Despachado. El porcentaje de estado es una posición en ese flujo; los pares finalizados del panel usan los aceptados en la última etapa de órdenes cerradas.
 
+Durante **En producción**, abre **Ver orden** y sigue el recuadro **Siguiente paso**: inicia o termina Corte, Aparado, Montado y Acabado según la ficha. Al terminar una etapa registra los pares aceptados y rechazados. El botón **Enviar a calidad** aparece cuando todas las etapas terminaron; mientras tanto, el botón principal indica la etapa que corresponde. Una orden puede estar en producción y tener etapas internas todavía pendientes: ese bloqueo protege el seguimiento y el consumo de materiales.
+
 ## Poblar la base con datos de demostración
 
 ```sh
 npm run db:populate
 ```
 
-Después de instalar el esquema y los catálogos, este comando añade un conjunto ficticio amplio: 12 materiales, 8 modelos, 48 variantes, 12 trabajadores y 20 órdenes (cuatro por cada estado). Incluye lotes, recepciones/salidas, reservas, incidencias abiertas/en atención/resueltas, horas y 22 presupuestos con versiones y estados de ejemplo. Completa únicamente los criterios del piloto que no existan, dejándolos pendientes con evidencia ficticia.
+Después de instalar el esquema y los catálogos, este comando añade un conjunto ficticio amplio: 12 materiales, 8 modelos, 48 variantes, 12 trabajadores y 20 órdenes (cuatro por cada estado). Incluye lotes, recepciones/salidas, reservas, incidencias resueltas, horas y 22 presupuestos con versiones y estados de ejemplo. Las existencias superan los mínimos y los rechazos se concilian entre etapas. Completa únicamente los criterios del piloto que no existan, dejándolos pendientes con evidencia ficticia.
+
+Para añadir una segunda edición independiente, sin borrar ni modificar los registros anteriores:
+
+```sh
+npm run db:populate:renew
+```
+
+Esta edición usa códigos `DEMO-POB2-`. Repetir el comando no duplica datos. Para practicar con incidencias pendientes y alertas intencionales se puede usar `npm run db:populate -- --training` sobre una base que todavía no tenga esa edición; no cambia una demostración ya cargada.
 
 Los registros nuevos llevan códigos `DEMO-POB-` o identificación de demostración. No cambia los registros previos, no crea cuentas de acceso y no restablece contraseñas. La carga es transaccional y se registra en auditoría; repetirla no duplica registros. Si encuentra códigos de ese conjunto sin una carga confirmada, se detiene para evitar sobrescribirlos. No se ejecuta al iniciar el servidor.
 
@@ -135,6 +145,16 @@ npm run test:interface
 La prueba de interfaz usa el backend real y la misma base de pruebas preparada por `npm test`. Requiere Chromium: usa `/usr/bin/chromium`, el ejecutable indicado en `CHROMIUM_PATH`, o un Chromium instalado por Playwright (`npx playwright install chromium`). Verifica 15 vistas en nueve anchos (320–1920 px), accesibilidad automática, teclado, formularios y un circuito completo persistido desde otra sesión. Incluye importación de archivos, usuarios y cambios de perfil. Ambas suites deben ejecutarse en secuencia.
 
 Las antiguas pruebas con almacenamiento simulado fueron reemplazadas por pruebas de integración MySQL; no se conserva un modo local alternativo que pueda ocultar fallos de conexión.
+
+## Imágenes y programación
+
+Productos y modelos muestran una galería de 20 fotografías generadas, específicas para los 12 modelos y colores de demostración. Los originales de 1536 × 1024 se conservan en `assets/shoes/source/`; las versiones WebP del dashboard y su catálogo de prompts están en `assets/shoes/`. Las tallas comparten imagen. Ejecuta `npm run images:assign` para asignar únicamente imágenes que todavía falten, por nombre y color; las imágenes propias se conservan.
+
+Al crear un producto puedes elegir una foto de la galería o subir un PNG/JPEG/WebP de hasta 2 MB. **Cambiar imagen**, en Productos o Modelos, actualiza la foto sin crear una versión nueva de ficha. Las subidas quedan en `assets/uploads/`, excluido de Git: incluye esa carpeta al respaldar o trasladar el sistema, además de los JSON de negocio. Las fotos de la galería representan el catálogo ficticio y no acreditan un producto comercial real.
+
+En **Ver orden → Editar código y plazo** se puede modificar el código visible y la entrega con motivo y control de concurrencia. La recomendación usa tiempos por par de las etapas pendientes, jornadas supuestas de ocho horas y un día de margen; no considera colas o personal disponible. Un plazo más corto exige confirmación. Cada etapa muestra fechas programadas y reales; **Programar fechas** permite planificar dentro del rango de la orden y sin invertir la secuencia. Las fechas reales no se editan desde ese formulario.
+
+Los manuales imprimibles están disponibles en **Guía de uso** y en `/manuales/usuario` y `/manuales/tecnico`. El formulario de creación de usuarios muestra la contraseña nueva y permite ocultarla; la edición no recupera claves existentes.
 
 ## Acceso y despliegue
 

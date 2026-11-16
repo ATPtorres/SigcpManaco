@@ -1,0 +1,1 @@
+ALTER TABLE DETALLE_ORDEN_ETAPA ADD CONSTRAINT chk_etapa_programacion CHECK((inicio_programado IS NULL AND fin_programado IS NULL) OR (inicio_programado IS NOT NULL AND fin_programado IS NOT NULL AND fin_programado>=inicio_programado));

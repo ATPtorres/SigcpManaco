@@ -19,3 +19,4 @@ respaldo-manaco-mysql-*.json
 
 # Servicios y datos privados de desarrollo en Windows
 .runtime/
+assets/uploads/

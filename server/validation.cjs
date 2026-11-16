@@ -47,6 +47,7 @@ const schemas = {
       color_id: id,
       activo: z.boolean().default(true),
       etapas: z.array(step).min(1).max(30),
+      imagen_url: z.string().max(255).nullable().optional(),
     })
     .strict(),
   order: z
@@ -79,6 +80,9 @@ const schemas = {
   stage: z
     .object({ cantidad_aceptada: money.int(), cantidad_rechazada: money.int() })
     .strict(),
+  orderPlan: z.object({numero_orden:text(40),fin_programado:date,fin_esperado:date,motivo:text(500),aceptar_plazo_corto:z.boolean().default(false)}).strict(),
+  picture: z.object({imagen_url:z.string().max(255).nullable(),motivo:text(500)}).strict(),
+  stagePlan: z.object({inicio_programado:date,fin_programado:date,motivo:text(500)}).strict().refine(d=>d.fin_programado>=d.inicio_programado,{message:'El fin de etapa no puede ser anterior al inicio.'}),
   movement: z
     .object({
       material_id: id,
@@ -197,6 +201,7 @@ const catalogs = {
         nombre: text(),
         linea_id: id,
         descripcion: z.string().max(2000),
+        imagen_url: z.string().max(255).nullable().optional(),
       })
       .strict(),
   },

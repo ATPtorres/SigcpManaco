@@ -1,4 +1,5 @@
 const crypto = require("node:crypto");
+const { businessDate, utcDate } = require('./time.cjs');
 function fail(message, status = 409) {
   throw Object.assign(new Error(message), { status });
 }
@@ -111,6 +112,7 @@ async function saveMaterial(c, id, d) {
   return id;
 }
 async function saveProduct(c, id, d) {
+  require('./images.cjs').checkImage(d.imagen_url);
   const { etapas, ...fields } = d;
   const sequences = etapas.map((e) => e.secuencia);
   if (new Set(sequences).size !== sequences.length)
@@ -242,6 +244,29 @@ async function lockOrder(c, id) {
     id,
   ]);
 }
+async function planOrder(c,id,d,actor) {
+  const order=await lockOrder(c,id);
+  if(['Terminado','Despachado'].includes(order.estado))fail('La orden está cerrada.');
+  if(order.fin_programado.slice(0,10)!==d.fin_esperado)fail('Otra sesión cambió el plazo. Actualiza la orden.');
+  if(d.fin_programado<order.inicio_programado.slice(0,10))fail('El plazo no puede ser anterior al inicio de la orden.',400);
+  const steps=await rows(c,'SELECT d.*,f.minutos_estimados_por_par,f.secuencia FROM DETALLE_ORDEN_ETAPA d JOIN FICHA_ETAPA f USING(ficha_etapa_id) WHERE orden_id=? ORDER BY secuencia',[id]);
+  const recommendation=require('./planning.cjs').recommend(order,steps);
+  if(d.fin_programado<recommendation.fecha&&!d.aceptar_plazo_corto)fail('El plazo es menor al recomendado. Confirma expresamente el plazo ajustado.',400);
+  if(steps.some(e=>e.fin_programado && e.fin_programado>d.fin_programado))fail('Una etapa termina después del nuevo plazo. Ajusta primero sus fechas.',400);
+  await update(c,'ORDEN_FABRICACION','orden_id',id,{numero_orden:d.numero_orden,fin_programado:d.fin_programado});
+  await history(c,id,`Código/plazo actualizado: ${order.numero_orden} → ${d.numero_orden}; ${order.fin_programado.slice(0,10)} → ${d.fin_programado}. Motivo: ${d.motivo}`,actor);
+  return id;
+}
+async function planStage(c,id,d,actor) {
+  const {stage,order}=await stageOrder(c,id);
+  if(stage.estado==='Terminado'||['Terminado','Despachado'].includes(order.estado))fail('La etapa o la orden está cerrada.');
+  if(d.inicio_programado<order.inicio_programado.slice(0,10)||d.fin_programado>order.fin_programado.slice(0,10))fail('Las fechas de etapa deben estar dentro del período de la orden.',400);
+  const adjacent=await rows(c,'SELECT d.inicio_programado,d.fin_programado,f.secuencia FROM DETALLE_ORDEN_ETAPA d JOIN FICHA_ETAPA f USING(ficha_etapa_id) WHERE orden_id=? AND d.detalle_etapa_id<>?',[order.orden_id,id]);
+  if(adjacent.some(e=>(e.secuencia<stage.secuencia&&e.fin_programado&&e.fin_programado>d.inicio_programado)||(e.secuencia>stage.secuencia&&e.inicio_programado&&e.inicio_programado<d.fin_programado)))fail('Las fechas se superponen con la secuencia de otra etapa.',400);
+  await update(c,'DETALLE_ORDEN_ETAPA','detalle_etapa_id',id,{inicio_programado:d.inicio_programado,fin_programado:d.fin_programado});
+  await history(c,order.orden_id,`Programación de etapa ${stage.secuencia}: ${d.inicio_programado} → ${d.fin_programado}. Motivo: ${d.motivo}`,actor);
+  return id;
+}
 async function stageOrder(c, id) {
   const s = await one(
     c,
@@ -258,6 +283,14 @@ async function stageOrder(c, id) {
     order,
   };
 }
+async function stageQuantity(c, stage, order) {
+  const previous = await rows(c,
+    "SELECT d.cantidad_aceptada,d.conteo_confirmado,d.estado FROM DETALLE_ORDEN_ETAPA d JOIN FICHA_ETAPA f USING(ficha_etapa_id) WHERE d.orden_id=? AND f.secuencia<? ORDER BY f.secuencia DESC LIMIT 1",
+    [order.orden_id, stage.secuencia]);
+  // Imported stages with unknown counts retain their documented original plan.
+  return previous.length && previous[0].conteo_confirmado && previous[0].estado === 'Terminado'
+    ? previous[0].cantidad_aceptada : order.cantidad_planificada;
+}
 async function startStageLocked(c, stage, order, actor) {
   if (stage.estado !== "Pendiente") fail("La etapa ya fue iniciada.");
   if (stage.ficha_id !== order.ficha_id)
@@ -268,6 +301,7 @@ async function startStageLocked(c, stage, order, actor) {
     [order.orden_id, stage.secuencia],
   );
   if (previous.length) fail("Termina las etapas anteriores.");
+  const inputQuantity = await stageQuantity(c, stage, order);
   const requirements = await rows(
     c,
     "SELECT * FROM REQUERIMIENTO_MATERIAL WHERE orden_id=? AND ficha_etapa_id=? ORDER BY material_id",
@@ -281,7 +315,7 @@ async function startStageLocked(c, stage, order, actor) {
     let remaining = round(
       r.cantidad_neta_por_par *
         (1 + r.porcentaje_merma / 100) *
-        order.cantidad_planificada,
+        inputQuantity,
     );
     const lots = await rows(
       c,
@@ -352,8 +386,9 @@ async function finishStage(c, id, d, actor) {
   const { stage, order } = await stageOrder(c, id);
   if (order.estado !== "En producción" || stage.estado !== "En producción")
     fail("La etapa debe estar en producción.");
-  if (d.cantidad_aceptada + d.cantidad_rechazada !== order.cantidad_planificada)
-    fail("Aceptadas y rechazadas deben sumar la cantidad planificada.", 400);
+  const inputQuantity = await stageQuantity(c, stage, order);
+  if (d.cantidad_aceptada + d.cantidad_rechazada !== inputQuantity)
+    fail(`Aceptadas y rechazadas deben sumar los ${inputQuantity} pares recibidos de la etapa anterior (o del plan inicial).`, 400);
   const issues = await one(
     c,
     "SELECT COUNT(*) n FROM INCIDENCIA_PRODUCCION WHERE detalle_etapa_id=? AND estado<>'Resuelta'",
@@ -395,12 +430,12 @@ async function advance(c, id, d, actor) {
     );
   }
   if (order.estado === "En producción") {
-    const pending = await one(
+    const pending = await rows(
       c,
-      "SELECT COUNT(*) n FROM DETALLE_ORDEN_ETAPA WHERE orden_id=? AND estado<>'Terminado'",
+      "SELECT e.nombre FROM DETALLE_ORDEN_ETAPA d JOIN FICHA_ETAPA f USING(ficha_etapa_id) JOIN ETAPA_FABRICACION e USING(etapa_id) WHERE orden_id=? AND d.estado<>'Terminado' ORDER BY f.secuencia",
       [id],
     );
-    if (pending.n) fail("Completa todas las etapas antes de enviar a calidad.");
+    if (pending.length) fail(`Antes de enviar a calidad, completa: ${pending.map(e=>e.nombre).join(', ')}. Abre la orden y continúa con ${pending[0].nombre}.`);
   }
   if (order.estado === "Control de calidad") {
     const issues = await one(
@@ -491,7 +526,7 @@ async function reserve(c, d) {
   const total = round(
     req.cantidad_neta_por_par *
       (1 + req.porcentaje_merma / 100) *
-      order.cantidad_planificada,
+      (await stageQuantity(c, stage, order)),
   );
   const reserved = await one(
     c,
@@ -570,6 +605,10 @@ async function labor(c, d) {
   const { stage, order } = await stageOrder(c, d.detalle_etapa_id);
   if (stage.estado !== "En producción" || order.estado !== "En producción")
     fail("La etapa debe estar en producción.");
+  if (d.fecha > businessDate())
+    fail("No se pueden registrar horas en una fecha futura.", 400);
+  if (stage.inicio_real && d.fecha < utcDate(stage.inicio_real))
+    fail("La fecha de trabajo no puede ser anterior al inicio real de la etapa.", 400);
   const w = await one(
     c,
     "SELECT * FROM TRABAJADOR_ZAPATERO WHERE trabajador_id=? AND estado='Activo' FOR UPDATE",
@@ -615,6 +654,8 @@ async function budget(c, d) {
   return id;
 }
 module.exports = {
+  planOrder,
+  planStage,
   fail,
   rows,
   one,

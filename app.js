@@ -127,7 +127,7 @@ async function api(path, options = {}) {
   return data;
 }
 async function loadState() {
-  const data = await api("/api/state");
+  const data = await api("/api/state?compact=1");
   db = data;
   document.body.classList.remove("signed-out");
   if (!currentUser) currentUser = (await api("/api/session")).user;
@@ -296,6 +296,9 @@ function render() {
     settings: settingsView,
     guide: guideView,
   }[route]();
+  const registry = { orders: 'orders', materials: 'movements', inventory: 'movements', settings: 'audit' }[route];
+  if (registry && (registry !== 'audit' || currentUser?.role === 'Administrador'))
+    $('#main').insertAdjacentHTML('beforeend', `<div class="section-gap"><button class="btn" data-action="records" data-id="${registry}">Consultar historial completo por páginas</button></div>`);
   $("#main").classList.remove("view-enter");
   void $("#main").offsetWidth;
   $("#main").classList.add("view-enter");
@@ -430,8 +433,8 @@ function productCards() {
   return (
     list
       .map(
-        (p) =>
-          `<article class="product-card"><div class="product-art"><span class="product-code">${esc(p.sku)} / COLECCIÓN MANACO</span>${shoe(p.tone)}</div><div class="product-body"><span class="eyebrow">${esc(p.category)} / ${esc(p.color)}</span><h2>${esc(p.name)}</h2><p>${esc(p.description)}</p><p>Tallas ${esc(p.sizes)}<br>${p.bom.length} materiales en la receta</p><div class="product-footer"><span class="result-count">${db.orders.filter((o) => o.product === p.id).length} órdenes registradas</span><button class="text-link" data-action="edit-product" data-id="${p.id}">Editar / versionar →</button><button class="text-link" data-action="ficha-detail" data-id="${p.id}">Ver fichas</button></div></div></article>`,
+        (p, index) =>
+          `<article class="product-card"><div class="product-art"><span class="product-code">${esc(p.sku)} / COLECCIÓN MANACO</span>${p.image_url?`<img class="product-photo" src="${esc(p.image_url)}" alt="${esc(p.name)} · vista de perfil" loading="${index < 3 ? "eager" : "lazy"}" fetchpriority="${index === 0 ? "high" : "auto"}" decoding="async" width="1536" height="1024">`:`<span class="image-empty">Añade una imagen del producto</span>`}</div><div class="product-body"><span class="eyebrow">${esc(p.category)} / ${esc(p.color)}</span><h2>${esc(p.name)}</h2><p>${esc(p.description)}</p><p>Tallas ${esc(p.sizes)}<br>${p.bom.length} materiales en la receta</p><div class="product-footer"><span class="result-count">${db.orders.filter((o) => o.product === p.id).length} órdenes registradas</span><button class="text-link" data-action="product-image" data-id="${p.id}">Cambiar imagen</button><button class="text-link" data-action="edit-product" data-id="${p.id}">Editar / versionar →</button><button class="text-link" data-action="ficha-detail" data-id="${p.id}">Ver fichas</button></div></div></article>`,
       )
       .join("") || '<div class="empty">No se encontraron productos.</div>'
   );
@@ -470,7 +473,7 @@ function materialsView() {
       button("Exportar CSV", "export-materials", "down", "") +
         button("Nuevo material", "new-material"),
     ) +
-    `<div class="kpis">${kpi("Materiales registrados", db.materials.length, "referencias", "Catálogo de insumos y componentes", "layers")}${kpi("Bajo nivel mínimo", lowStock().length, "materiales", "Revisión de reposición necesaria", "alert", true)}${kpi("Con disponibilidad", db.materials.length - lowStock().length, "materiales", "Existencias por encima del mínimo", "check")}${kpi("Movimientos", db.movements.length, "registros", "Entradas y salidas trazables", "flow")}</div>` +
+    `<div class="kpis">${kpi("Materiales registrados", db.materials.length, "referencias", "Catálogo de insumos y componentes", "layers")}${kpi("Bajo nivel mínimo", lowStock().length, "materiales", "Revisión de reposición necesaria", "alert", true)}${kpi("Con disponibilidad", db.materials.length - lowStock().length, "materiales", "Existencias por encima del mínimo", "check")}${kpi("Movimientos", db.movementCount ?? db.movements.length, "registros", "Entradas y salidas trazables", "flow")}</div>` +
     toolbar("Buscar material o código…", ["Disponible", "Bajo mínimo"]) +
     `<section class="panel" id="results">${materialsTable()}</section>` +
     `<section class="panel section-gap"><div class="panel-head"><h2>Últimos movimientos</h2></div><div class="activity">${
@@ -617,7 +620,7 @@ function guideView() {
       "Guía de uso",
       "Un circuito de información, desde los materiales hasta la entrega.",
     ) +
-    `<div class="guide-grid">${[
+    `<p class="row-actions"><a class="btn" href="/manuales/usuario" target="_blank" rel="noopener">Manual de usuario</a><a class="btn" href="/manuales/tecnico" target="_blank" rel="noopener">Manual técnico</a></p><div class="guide-grid">${[
       [
         "01",
         "Prepara el catálogo",
@@ -666,7 +669,9 @@ function showModal(title, html) {
 }
 function closeModal() {
   $("#modal").close();
+  const password=$('#record-form [name="password"]'); if(password)password.value="";
 }
+$('#modal').addEventListener('close',()=>{const input=$('#record-form [name="password"]');if(input)input.value='';});
 const field = (
   label,
   name,
@@ -676,8 +681,8 @@ const field = (
   full = false,
 ) =>
   `<label class="field ${full ? "full" : ""}">${label}<input name="${name}" type="${type}" value="${esc(value)}" ${extra}></label>`;
-const selectField = (label, name, values, current = "", full = false) =>
-  `<label class="field ${full ? "full" : ""}">${label}<select name="${name}" required>${values
+const selectField = (label, name, values, current = "", full = false, required = true) =>
+  `<label class="field ${full ? "full" : ""}">${label}<select name="${name}" ${required?'required':''}>${values
     .map((v) => {
       const pair = Array.isArray(v) ? v : [v, v];
       return `<option value="${esc(pair[0])}" ${String(pair[0]) === String(current) ? "selected" : ""}>${esc(pair[1])}</option>`;
@@ -714,11 +719,12 @@ const activeWorkers = () =>
     .map((w) => [w.trabajador_id, w.nombre_completo]);
 async function command(path, data, message, method = "POST") {
   await api(path, { method, body: JSON.stringify(data) });
-  closeModal();
   try {
     await loadState();
+    closeModal();
     toast(message);
   } catch (error) {
+    closeModal();
     toast(
       "La operación se confirmó, pero no se pudo actualizar la vista. Usa Actualizar.",
     );
@@ -796,17 +802,49 @@ function availability(o) {
     };
   });
 }
-function detail(id) {
+async function detail(id) {
   const o = db.orders.find((o) => o.id === id);
   if (!o) return;
+  const nextStage = o.etapas.find(e => e.estado !== 'Terminado');
+  const guidance = o.state === 1 && nextStage
+    ? `<div class="note" role="status">${o.etapas.filter(e=>e.estado==='Terminado').length} de ${o.etapas.length} etapas terminadas. Siguiente paso: <strong>${nextStage.estado==='En producción'?'Terminar':'Iniciar'} ${esc(nextStage.nombre)}</strong>. Después de completar la fabricación podrás enviar la orden a calidad.</div>` : '';
+  const history = await api('/api/records/history?order=' + o.orden_id + '&limit=100');
+  o.history = history.items.reverse().map(h => ({text:h.descripcion, actor:h.actor, at:h.fecha_hora.replace(' ','T')+'Z'}));
   showModal(
     "Orden " + o.numero_orden,
-    `<div class="row-actions">${badge(o.state)}${priority(o.priority)}</div><div class="detail-grid"><div><small>Producto</small><strong>${esc(product(o.product)?.name)}</strong></div><div><small>Planificado</small><strong>${num(o.quantity)} pares</strong></div><div><small>Responsable</small><strong>${esc(o.owner)}</strong></div><div><small>Ficha / fechas</small><strong>#${o.ficha_id} · ${date(o.start)} → ${date(o.due)}</strong></div></div>${deadlineNotice(o)}${o.origen_datos === "Migrado" ? '<div class="note">Orden heredada: los consumos anteriores ya están reflejados en el saldo. Las horas de inicio y el desglose histórico por etapas no fueron registrados.</div>' : ""}<h3>Etapas de fabricación</h3><div class="activity">${o.etapas.map((e) => `<div class="activity-item"><strong>${e.secuencia}. ${esc(e.nombre)}</strong><p>${esc(e.estado)} · ${e.conteo_confirmado ? `Aceptados: ${num(e.cantidad_aceptada)} · Rechazados: ${num(e.cantidad_rechazada)}` : "Conteo histórico: no medido"}</p><div class="row-actions">${["Pendiente", "En producción"].includes(e.estado) && o.state < 3 ? `<button class="text-link" data-action="stage-incident" data-id="${e.detalle_etapa_id}">Registrar incidencia</button>` : ""}</div>${e.estado === "Pendiente" && o.state === 1 ? `<button class="btn small" data-action="start-stage" data-id="${e.detalle_etapa_id}">Iniciar ${esc(e.nombre)}</button>` : ""}${e.estado === "En producción" ? `<button class="btn small" data-action="finish-stage" data-id="${e.detalle_etapa_id}">Terminar ${esc(e.nombre)}</button>` : ""}</div>`).join("")}</div>${o.evidence ? `<div class="note">Evidencia de calidad: ${esc(o.evidence)}</div>` : ""}<h3>Trazabilidad</h3><div class="activity">${o.history.map((h) => `<div class="activity-item">${esc(h.text)}<small>${date(h.at)} · ${esc(h.actor)}</small></div>`).join("")}</div><div class="form-footer">${o.state < 4 ? `<button class="btn primary" data-action="advance" data-id="${o.id}">${["Iniciar producción", "Enviar a calidad", "Terminar orden", "Registrar despacho"][o.state]}</button>` : ""}</div>`,
+    `<div class="row-actions">${badge(o.state)}${priority(o.priority)}</div><div class="detail-grid"><div><small>Producto</small><strong>${esc(product(o.product)?.name)}</strong></div><div><small>Planificado</small><strong>${num(o.quantity)} pares</strong></div><div><small>Responsable</small><strong>${esc(o.owner)}</strong></div><div><small>Ficha / fechas</small><strong>#${o.ficha_id} · ${date(o.start)} → ${date(o.due)}</strong></div></div>${deadlineNotice(o)}${guidance}${o.origen_datos === "Migrado" ? '<div class="note">Orden heredada: los consumos anteriores ya están reflejados en el saldo. Las horas de inicio y el desglose histórico por etapas no fueron registrados.</div>' : ""}${o.state<3?`<button class="btn" data-action="order-plan" data-id="${o.id}">Editar código y plazo</button>`:""}<h3>Etapas de fabricación</h3><div class="activity">${o.etapas.map(e=>stageCard(o,e,nextStage)).join("")}</div>${o.evidence ? `<div class="note">Evidencia de calidad: ${esc(o.evidence)}</div>` : ""}<h3>Trazabilidad · últimos 100 eventos</h3><div class="activity">${o.history.map((h) => `<div class="activity-item">${esc(h.text)}<small>${date(h.at)} · ${esc(h.actor)}</small></div>`).join("")}</div><div class="form-footer">${o.state === 1 && nextStage ? `<button class="btn primary" data-action="continue-stage" data-id="${o.id}">${nextStage.estado === "En producción" ? "Terminar" : "Iniciar"} ${esc(nextStage.nombre)}</button>` : o.state < 4 ? `<button class="btn primary" data-action="advance" data-id="${o.id}">${["Iniciar producción", "Enviar a calidad", "Terminar orden", "Registrar despacho"][o.state]}</button>` : ""}</div>`,
   );
+}
+function stageCard(o,e,nextStage) {
+  const active=e===nextStage && o.state===1;
+  const stamp=value=>value?new Intl.DateTimeFormat('es-BO',{dateStyle:'medium',timeStyle:'short',timeZone:'America/La_Paz'}).format(new Date(value.replace(' ','T')+'Z')):'No registrado';
+  return `<article class="stage-card ${e.estado==='Terminado'?'stage-done':active?'stage-current':'stage-pending'}" ${active?'aria-current="step"':''}><div class="stage-heading"><span class="stage-number">${e.secuencia}</span><h4>${esc(e.nombre)}</h4><span class="stage-status">${esc(e.estado)}</span></div><p>${e.estado==='Terminado'&&e.conteo_confirmado?`Aceptados: ${num(e.cantidad_aceptada)} · Descartados: ${num(e.cantidad_rechazada)}`:e.origen_datos==='Migrado'&&!e.conteo_confirmado?'Conteo histórico no registrado':'Resultados pendientes de registrar'}</p><dl class="stage-dates"><div><dt>Inicio programado</dt><dd>${e.inicio_programado?date(e.inicio_programado):'Sin programar'}</dd></div><div><dt>Fin programado</dt><dd>${e.fin_programado?date(e.fin_programado):'Sin programar'}</dd></div><div><dt>Inicio real</dt><dd>${stamp(e.inicio_real)}</dd></div><div><dt>Fin real</dt><dd>${stamp(e.fin_real)}</dd></div></dl><div class="row-actions">${e.estado!=='Terminado'&&o.state<3?`<button class="text-link" data-action="stage-plan" data-id="${e.detalle_etapa_id}">Programar fechas</button><button class="text-link" data-action="stage-incident" data-id="${e.detalle_etapa_id}">Registrar incidencia</button>`:''}${e.estado==='Pendiente'&&active?`<button class="btn small" data-action="start-stage" data-id="${e.detalle_etapa_id}">Iniciar ${esc(e.nombre)}</button>`:''}${e.estado==='En producción'?`<button class="btn small" data-action="finish-stage" data-id="${e.detalle_etapa_id}">Terminar ${esc(e.nombre)}</button>`:''}</div></article>`;
+}
+function orderPlanForm(id) {
+  const o=db.orders.find(o=>o.id===id);if(!o)return;
+  showModal('Código y plazo de la orden',formHTML(
+    `<div class="note full">Plazo recomendado: <strong>${date(o.recommendation.fecha)}</strong>. ${esc(o.recommendation.supuesto)}</div>`+
+    field('Código visible de la orden','numero_orden',o.numero_orden,'text','required maxlength="40"',true)+
+    field('Nueva fecha de fin','fin_programado',o.due,'date',`required min="${o.start}"`,true)+
+    `<p class="full" id="deadline-advice" role="status"></p><label class="check-row full"><input type="checkbox" name="aceptar_plazo_corto">Confirmo que revisé los recursos para un plazo menor al recomendado.</label>`+
+    textarea('Motivo del cambio','motivo','',true),'Guardar código y plazo'));
+  const input=$('#record-form [name="fin_programado"]');
+  const advice=()=>{$('#deadline-advice').textContent=input.value<o.recommendation.fecha?'Alerta: el plazo seleccionado es menor al recomendado. Revisa capacidad, materiales y personal.':'El plazo seleccionado contempla la estimación indicada.';};input.oninput=advice;advice();
+  bindForm(d=>command(`/api/orders/${id}/plan`,{numero_orden:d.numero_orden,fin_programado:d.fin_programado,fin_esperado:o.due,motivo:d.motivo,aceptar_plazo_corto:$('#record-form [name="aceptar_plazo_corto"]').checked},'Código y plazo actualizados.','PUT'));
+}
+function stagePlanForm(id) {
+  const o=db.orders.find(o=>o.etapas.some(e=>e.detalle_etapa_id===Number(id)));if(!o)return;
+  const e=o.etapas.find(e=>e.detalle_etapa_id===Number(id));
+  showModal('Programar '+e.nombre,formHTML(field('Inicio de la etapa','inicio_programado',e.inicio_programado||o.start,'date',`required min="${o.start}" max="${o.due}"`)+field('Fin de la etapa','fin_programado',e.fin_programado||o.due,'date',`required min="${o.start}" max="${o.due}"`)+textarea('Motivo de programación','motivo','',true)));
+  bindForm(d=>command(`/api/order-stages/${id}/plan`,d,'Fechas de etapa guardadas.','PUT'));
 }
 async function advance(id) {
   const o = db.orders.find((o) => o.id === id);
   if (!o || o.state >= 4) return;
+  if (o.state === 1 && o.etapas.some(e=>e.estado!=='Terminado')) {
+    await detail(id);
+    return;
+  }
   if (o.state === 2) {
     showModal(
       "Aprobación de calidad",
@@ -854,17 +892,41 @@ async function advance(id) {
       "Estado de orden actualizado.",
     );
 }
+let registryView = { type: 'orders', page: 1, q: '' };
+async function continueStage(id) {
+  const o = db.orders.find(o=>o.id===id);
+  const next = o?.etapas.find(e=>e.estado!=='Terminado');
+  if (!next || o.state!==1) return detail(id);
+  if (next.estado==='En producción') return finishStageForm(next.detalle_etapa_id);
+  await command(`/api/order-stages/${next.detalle_etapa_id}/start`,{},`${next.nombre} iniciada. Registra sus resultados al terminar.`);
+  await detail(id);
+}
+async function recordsView(type = registryView.type, page = 1, q = registryView.q) {
+  const result = await api(`/api/records/${type}?page=${page}&limit=25&q=${encodeURIComponent(q)}`);
+  registryView = {type,page,q};
+  const columns = {
+    orders: ['numero_orden','estado','cantidad_planificada','inicio_programado','fin_programado'],
+    movements: ['movimiento_id','tipo_movimiento','cantidad','fecha_hora','motivo'],
+    audit: ['auditoria_id','fecha_hora','actor','accion','entidad','registro_id','motivo'],
+    history: ['historial_id','orden_id','fecha_hora','actor','descripcion'],
+  }[type];
+  showModal('Consulta de registros', `<form id="registry-search"><label class="field">Buscar en el historial<input name="q" value="${esc(q)}" maxlength="120"></label><button class="btn" type="submit">Buscar</button></form><p role="status">${num(result.total)} registros · Página ${page} de ${Math.max(1,result.pages)}</p>${tableView(columns.map(c=>c.replaceAll('_',' ')),result.items.map(r=>columns.map(c=>esc(String(r[c] ?? '—')))))}<div class="row-actions"><button class="btn" data-action="records-prev" ${page<=1?'disabled':''}>Anterior</button><button class="btn" data-action="records-next" ${page>=result.pages?'disabled':''}>Siguiente</button></div>`);
+  $('#registry-search').onsubmit = e => {e.preventDefault();recordsView(type,1,new FormData(e.target).get('q')).catch(error=>toast(error.message));};
+}
 function finishStageForm(id) {
   const o = db.orders.find((o) =>
     o.etapas.some((e) => e.detalle_etapa_id === Number(id)),
   );
+  const stageIndex = o.etapas.findIndex(e => e.detalle_etapa_id === Number(id));
+  const previous = o.etapas[stageIndex-1];
+  const received = previous?.conteo_confirmado ? previous.cantidad_aceptada : o.quantity;
   showModal(
     "Terminar etapa",
     formHTML(
-      field(
+      `<p>Recibidos: ${num(received)} pares. Los rechazos se descartan y no pasan a la siguiente etapa.</p>` + field(
         "Pares aceptados",
         "cantidad_aceptada",
-        o.quantity,
+        received,
         "number",
         'min="0" required',
       ) +
@@ -886,6 +948,46 @@ let recipeRowCount = 0;
 function recipeRow(data = {}) {
   const i = recipeRowCount++;
   return `<fieldset class="recipe-row" data-recipe-row="${i}"><legend>Etapa y consumo ${i + 1}</legend><div class="form-grid">${field("Secuencia", "seq_" + i, data.secuencia || i + 1, "number", 'min="1" required')}${selectField("Etapa", "stage_" + i, refOptions("stages", "etapa_id"), data.etapa_id)}${field("Minutos por par", "minutes_" + i, data.minutos_estimados_por_par || 0, "number", 'min="0" step="0.0001" required')}${field("Costo de mano de obra por par", "cost_" + i, data.costo_mano_obra_estimado_por_par || 0, "number", 'min="0" step="0.0001" required')}${selectField("Material", "material_" + i, [[0, "Sin material"], ...db.materials.filter((m) => m.activo).map((m) => [m.material_id, m.name + " · " + m.unit])], data.material_id || 0)}${field("Consumo neto por par", "qty_" + i, data.cantidad_neta_por_par || 0, "number", 'min="0" step="0.0001" required')}${field("Merma (%)", "waste_" + i, data.porcentaje_merma || 0, "number", 'min="0" max="100" step="0.0001" required')}</div><button type="button" class="text-link" data-action="remove-recipe">Quitar fila</button></fieldset>`;
+}
+function imagePicker(selected = '') {
+  const entries=db.imageCatalog||[];
+  return `<fieldset class="image-picker full"><legend>Imagen del calzado</legend><img id="image-preview" class="image-preview" alt="Vista previa de la imagen seleccionada" ${selected?`src="${esc(selected)}"`:'hidden'}>${selectField('Elegir fotografía de la galería','imagen_url', [['','Automática según modelo y color'],...entries.map(e=>[e.src,e.model+' · '+e.color]),...(selected&&!entries.some(e=>e.src===selected)?[[selected,'Imagen propia guardada']]:[])],selected,true,false)}<label class="field">Subir imagen propia<input id="image-upload" type="file" accept="image/png,image/jpeg,image/webp"><small>PNG, JPG o WebP, máximo 2 MB. Usa fondo blanco y vista de perfil.</small></label><p>Las imágenes de la galería son representaciones generadas para demostración.</p></fieldset>`;
+}
+function mountImagePicker() {
+  const choice=$('#record-form [name="imagen_url"]');if(!choice)return;
+  const preview=$('#image-preview');
+  const normalize=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s*\(demo\)/gi,'').trim().toLowerCase();
+  const update=()=>{
+    const model=db.refs.models.find(m=>String(m.modelo_id)===$('#record-form [name="modelo_id"]')?.value);
+    const color=db.refs.colors.find(c=>String(c.color_id)===$('#record-form [name="color_id"]')?.value);
+    const src=choice.value||(db.imageCatalog||[]).find(e=>normalize(e.model)===normalize(model?.nombre)&&normalize(e.color)===normalize(color?.nombre))?.src;
+    preview.hidden=!src;if(src)preview.src=src;else preview.removeAttribute('src');
+  };
+  choice.onchange=update;
+  for(const name of ['modelo_id','color_id']){const input=$(`#record-form [name="${name}"]`);if(input)input.addEventListener('change',update);}
+  update();
+  $('#image-upload').onchange=async event=>{
+    const file=event.target.files[0];if(!file)return;
+    const submit=$('#record-form [type="submit"]');submit.disabled=true;
+    try{
+      if(file.size>2*1024*1024||!['image/png','image/jpeg','image/webp'].includes(file.type))throw Error('Usa PNG, JPG o WebP de hasta 2 MB.');
+      const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});
+      const result=await api('/api/images',{method:'POST',body:JSON.stringify({data,type:file.type})});
+      choice.add(new Option('Imagen propia: '+file.name,result.id));choice.value=result.id;update();
+    }catch(error){$('#form-error').textContent=error.message;}finally{submit.disabled=false;event.target.value='';}
+  };
+}
+function pictureForm(type,id) {
+  const item=type==='models'?db.refs.models.find(m=>m.modelo_id===Number(id)):db.products.find(p=>p.id===id);
+  if(!item)return;
+  showModal('Imagen de '+(item.nombre||item.name),formHTML(imagePicker(item.imagen_url||item.image_url||'')+textarea('Motivo del cambio','motivo','Actualización de fotografía del catálogo',true),'Guardar imagen'));
+  mountImagePicker();
+  bindForm(d=>command(`/api/${type}/${type==='models'?id:item.producto_id}/image`,{imagen_url:d.imagen_url||null,motivo:d.motivo},'Imagen actualizada sin modificar la ficha.','PUT'));
+}
+function togglePassword() {
+  const input=$('#record-form [name="password"]');if(!input)return;
+  const visible=input.type==='password';input.type=visible?'text':'password';
+  const control=$('[data-action="toggle-password"]');control.textContent=visible?'Ocultar contraseña':'Mostrar contraseña';control.setAttribute('aria-pressed',String(visible));
 }
 function productForm(id) {
   if (
@@ -937,9 +1039,10 @@ function productForm(id) {
           ],
           p ? p.activo : 1,
         ) +
-        `<div class="field full"><p>La misma secuencia agrupa materiales de una etapa. Cada edición crea una ficha nueva; las órdenes existentes conservan su versión.</p><div id="recipe-rows">${current.map(recipeRow).join("")}</div><button type="button" class="btn" data-action="add-recipe">Añadir etapa / material</button></div>`,
+        imagePicker(p?.imagen_url || "") + `<div class="field full"><p>La misma secuencia agrupa materiales de una etapa. Cada edición crea una ficha nueva; las órdenes existentes conservan su versión.</p><div id="recipe-rows">${current.map(recipeRow).join("")}</div><button type="button" class="btn" data-action="add-recipe">Añadir etapa / material</button></div>`,
     ),
   );
+  mountImagePicker();
   bindForm((d) => {
     const grouped = new Map();
     for (const row of document.querySelectorAll("[data-recipe-row]")) {
@@ -981,6 +1084,7 @@ function productForm(id) {
         color_id: Number(d.color_id),
         activo: d.activo === "1",
         etapas: [...grouped.values()],
+        imagen_url: d.imagen_url || null,
       },
       "Producto y ficha guardados.",
       id ? "PUT" : "POST",
@@ -1423,7 +1527,7 @@ function laborForm() {
     formHTML(
       selectField("Orden y etapa", "detalle_etapa_id", stages, "", true) +
         selectField("Trabajador", "trabajador_id", activeWorkers(), "", true) +
-        field("Fecha", "fecha", today(), "date", "required") +
+        field("Fecha", "fecha", today(), "date", `required max="${today()}"`) +
         field(
           "Horas trabajadas",
           "horas_trabajadas",
@@ -1455,7 +1559,7 @@ function catalogsView() {
     `<div class="guide-grid">${Object.entries(specs)
       .map(
         ([type, [label]]) =>
-          `<section class="guide-card"><h2>${label}</h2><p>${db.refs[type].map((r) => esc(r.nombre || r.codigo || r.sistema + " " + r.valor)).join(" · ") || "Sin registros"}</p><button class="btn" data-action="new-catalog" data-id="${type}">Añadir ${label.toLowerCase()}</button></section>`,
+          `<section class="guide-card"><h2>${label}</h2>${type==="models"?`<div class="model-gallery">${db.refs.models.map(m=>`<figure class="model-photo">${m.image_url?`<img src="${esc(m.image_url)}" alt="${esc(m.nombre)} · vista de perfil" loading="lazy" width="1536" height="1024">`:""}<figcaption>${esc(m.nombre)}</figcaption><button class="text-link" data-action="model-image" data-id="${m.modelo_id}">Cambiar imagen</button></figure>`).join("")}</div>`:""}<p>${db.refs[type].map((r) => esc(r.nombre || r.codigo || r.sistema + " " + r.valor)).join(" · ") || "Sin registros"}</p><button class="btn" data-action="new-catalog" data-id="${type}">Añadir ${label.toLowerCase()}</button></section>`,
       )
       .join("")}</div>`
   );
@@ -1506,8 +1610,10 @@ function catalogForm(type) {
     );
   if (["models", "stages", "locations"].includes(type))
     content += textarea("Descripción", "descripcion", "", type === "locations");
+  if(type === 'models') content += imagePicker();
   showModal("Añadir al catálogo", formHTML(content));
-  bindForm((d) => command("/api/catalogs/" + type, d, "Catálogo actualizado."));
+  if(type === 'models') mountImagePicker();
+  bindForm((d) => command("/api/catalogs/" + type, {...d,...(type==='models'?{imagen_url:d.imagen_url||null}:{})}, "Catálogo actualizado."));
 }
 function budgetsView() {
   return (
@@ -1714,6 +1820,15 @@ document.addEventListener("click", async (event) => {
   const action = el.dataset.action,
     id = el.dataset.id;
   const handlers = {
+    'continue-stage': () => continueStage(id),
+    'order-plan': () => orderPlanForm(id),
+    'stage-plan': () => stagePlanForm(id),
+    'toggle-password': () => togglePassword(),
+    'product-image': () => pictureForm('products',id),
+    'model-image': () => pictureForm('models',id),
+    records: () => recordsView(id,1,''),
+    'records-prev': () => recordsView(registryView.type,registryView.page-1),
+    'records-next': () => recordsView(registryView.type,registryView.page+1),
     "new-order": orderForm,
     "new-product": () => productForm(),
     "edit-product": () => productForm(id),
@@ -2022,6 +2137,7 @@ function confirmLegacy() {
 function canAct(action) {
   if (currentUser?.role === "Administrador") return true;
   const read = [
+    'records', 'records-prev', 'records-next',
     "detail",
     "ficha-detail",
     "budget-detail",
@@ -2038,6 +2154,7 @@ function canAct(action) {
     currentUser?.role === "Operador" &&
     [
       "new-order",
+      'continue-stage', 'order-plan', 'stage-plan',
       "advance",
       "start-stage",
       "finish-stage",
@@ -2110,10 +2227,10 @@ function userForm(id) {
           u ? "Nueva contraseña (vacía para conservar)" : "Contraseña",
           "password",
           "",
-          "password",
+          u ? "password" : "text",
           `${u ? "" : "required"} minlength="12" maxlength="200" autocomplete="new-password"`,
           true,
-        ),
+        ) + `<button type="button" class="btn full" data-action="toggle-password" aria-pressed="${!u}">${u?'Mostrar':'Ocultar'} contraseña</button>`,
     ),
   );
   bindForm((d) =>
