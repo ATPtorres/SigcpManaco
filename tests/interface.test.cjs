@@ -268,6 +268,57 @@ const server = http.createServer(createApp(pool));
     };
     const read = async () =>
       (await page.request.get(origin + "/api/state")).json();
+    // Task entry points, understandable filtering and recoverable form errors.
+    await go("dashboard");
+    const queueOrder = await page.locator('.task-row [data-action="detail"]').first().getAttribute('data-id');
+    await page.locator('.task-row [data-action="detail"]').first().click();
+    const queued = (await read()).orders.find(o => o.id === queueOrder);
+    assert.equal(await page.locator('#modal-title').innerText(), 'Orden ' + queued.numero_orden);
+    await page.keyboard.press('Escape');
+    const chartState = await read();
+    const chartText = await page.locator('.model-chart').getAttribute('aria-label');
+    for (const model of chartState.refs.models) {
+      if (!chartText.includes(model.nombre + ':')) continue;
+      const planned = chartState.orders.filter(o => chartState.products.find(p => p.id === o.product)?.modelo_id === model.modelo_id).reduce((sum,o) => sum + o.quantity, 0);
+      assert.ok(chartText.includes(`${model.nombre}: ${planned} planificados`));
+    }
+    await go("orders");
+    await page.locator('.section-help summary').focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await page.locator('.section-help').getAttribute('open'), '');
+    await page.locator('#search').fill('registro inexistente UX');
+    assert.equal(await page.locator('#results [data-action="detail"]').count(), 0);
+    await page.locator('#clear-search').click();
+    assert.ok(await page.locator('#results [data-action="detail"]').count() > 0);
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'search');
+    await page.locator('#search').fill(queued.numero_orden);
+    await page.locator('#refresh-data').click();
+    await page.waitForFunction(() => !document.querySelector('#refresh-data').disabled);
+    assert.equal(await page.locator('#search').inputValue(), queued.numero_orden);
+    await go("materials");
+    await page.locator('[data-action="new-material"]').click();
+    await fill('codigo', 'UX-NO-GUARDAR');
+    await fill('nombre', 'Texto que debe conservarse');
+    let releaseSave;
+    const saveGate = new Promise(resolve => { releaseSave = resolve; });
+    await page.route('**/api/materials', async intercepted => {
+      await saveGate;
+      await intercepted.fulfill({status:422, contentType:'application/json', body:JSON.stringify({error:'Revisa el código del material.'})});
+    });
+    await page.locator('#record-form [type=submit]').click();
+    await page.locator('#record-form[aria-busy="true"]').waitFor();
+    assert.equal(await page.locator('.save-status').innerText(), 'Guardando…');
+    assert.equal(await page.locator('#record-form [type=submit]').isDisabled(), true);
+    releaseSave();
+    await page.locator('#form-error').filter({hasText:'Revisa el código'}).waitFor();
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'form-error');
+    assert.equal(await page.locator('#record-form [name="nombre"]').inputValue(), 'Texto que debe conservarse');
+    assert.equal(await page.locator('#record-form [type=submit]').isEnabled(), true);
+    await page.unroute('**/api/materials');
+    await page.keyboard.press('Escape');
+    await go('guide');
+    assert.equal(await page.locator('.glossary dt').count(), 8);
+    console.log('PASS task shortcuts, model totals, keyboard help, clear/preserved filters, pending save and recoverable errors');
     const stamp = Date.now();
     let state = await read();
     await go("workers");
@@ -518,6 +569,7 @@ const server = http.createServer(createApp(pool));
     await page.keyboard.press("Escape");
     await go("materials");
     await page
+      .locator("tbody tr").filter({hasText: legacyMaterial})
       .getByText("Material <img src=x onerror=alert(1)> UI", { exact: true })
       .waitFor();
     assert.equal(await page.locator("#main img").count(), 0);

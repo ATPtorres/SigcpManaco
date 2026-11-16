@@ -13,7 +13,7 @@ npm ci
 cp .env.example .env
 ```
 
-Edita `.env`: establece contraseñas propias en `DB_PASSWORD` y `MYSQL_ROOT_PASSWORD`. El acceso inicial de demostración es **usuario `admin`, contraseña `1234`**. Puedes configurar otra contraseña con `APP_PASSWORD` (mínimo 4 caracteres); para producción utiliza una contraseña larga y propia. Define `DB_PORT` si 3306 está ocupado. El archivo está excluido de Git; no compartas sus valores.
+Edita `.env`: establece contraseñas propias en `DB_PASSWORD`, `MYSQL_ROOT_PASSWORD` y `APP_PASSWORD`. La contraseña inicial de la aplicación es obligatoria, tiene al menos 12 caracteres y no puede ser una secuencia común o repetida. No hay contraseña predeterminada. El usuario inicial es `admin` salvo que configures `APP_USER`. Define `DB_PORT` si 3306 está ocupado. El archivo está excluido de Git; no compartas sus valores.
 
 Para MySQL con Docker:
 
@@ -64,7 +64,7 @@ Durante **En producción**, abre **Ver orden** y sigue el recuadro **Siguiente p
 npm run db:populate
 ```
 
-Después de instalar el esquema, este comando prepara los catálogos y crea el usuario inicial si no existe (`admin` / `1234` por defecto; respeta `APP_USER` y `APP_PASSWORD`). Después añade un conjunto ficticio amplio: 12 materiales, 8 modelos, 48 variantes, 12 trabajadores y 20 órdenes (cuatro por cada estado). Incluye lotes, recepciones/salidas, reservas, incidencias resueltas, horas y 22 presupuestos con versiones y estados de ejemplo. Las existencias superan los mínimos y los rechazos se concilian entre etapas. Completa únicamente los criterios del piloto que no existan, dejándolos pendientes con evidencia ficticia.
+Después de instalar el esquema, este comando prepara los catálogos y crea el usuario inicial si no existe (respeta `APP_USER` y exige una `APP_PASSWORD` propia y segura al crear la cuenta). Después añade un conjunto ficticio amplio: 12 materiales, 8 modelos, 48 variantes, 12 trabajadores y 20 órdenes (cuatro por cada estado). Incluye lotes, recepciones/salidas, reservas, incidencias resueltas, horas y 22 presupuestos con versiones y estados de ejemplo. Las existencias superan los mínimos y los rechazos se concilian entre etapas. Completa únicamente los criterios del piloto que no existan, dejándolos pendientes con evidencia ficticia.
 
 Para añadir una segunda edición independiente, sin borrar ni modificar los registros anteriores:
 
@@ -74,7 +74,7 @@ npm run db:populate:renew
 
 Esta edición usa códigos `DEMO-POB2-`. Repetir el comando no duplica datos. Para practicar con incidencias pendientes y alertas intencionales se puede usar `npm run db:populate -- --training` sobre una base que todavía no tenga esa edición; no cambia una demostración ya cargada.
 
-Los registros nuevos llevan códigos `DEMO-POB-` o identificación de demostración. No cambia los registros de negocio previos ni restablece contraseñas de cuentas existentes. Para restablecer el acceso a `1234`, configura `APP_PASSWORD=1234` en `.env` y ejecuta `npm run user:password`. La carga es transaccional y se registra en auditoría; repetirla no duplica registros. Si encuentra códigos de ese conjunto sin una carga confirmada, se detiene para evitar sobrescribirlos. No se ejecuta al iniciar el servidor.
+Los registros nuevos llevan códigos `DEMO-POB-` o identificación de demostración. No cambia los registros de negocio previos ni restablece contraseñas de cuentas existentes. Para cambiar el acceso, configura una contraseña propia de al menos 12 caracteres en `APP_PASSWORD` y ejecuta `npm run user:password`; se revocan las sesiones anteriores. La carga es transaccional y se registra en auditoría; repetirla no duplica registros. Si encuentra códigos de ese conjunto sin una carga confirmada, se detiene para evitar sobrescribirlos. No se ejecuta al iniciar el servidor.
 
 Los costos y nombres son ficticios. Las fechas de registro corresponden a la carga y las fechas programadas varían para explorar el seguimiento. Los ejemplos no representan producción real ni aprobación del piloto. Consulta [docs/datos-demostracion.md](docs/datos-demostracion.md) para las cantidades verificadas en el entorno.
 
@@ -169,3 +169,11 @@ El alta inicial proporciona un administrador. **Usuarios y permisos** permite cr
 Los permisos se validan en el servidor además de ocultar controles no permitidos en la interfaz. Para un despliegue compartido configura HTTPS, `COOKIE_SECURE=true`, `APP_ORIGIN` con el origen público exacto, un proxy fiable y un usuario MySQL de ejecución con privilegios mínimos. La creación del esquema debe usar credenciales de instalación; las tareas operativas no necesitan permisos DDL. Para MySQL remoto configura TLS con `DB_SSL_CA`; la verificación del certificado permanece activada.
 
 La bitácora es del servidor y registra al usuario autenticado; no se presenta como auditoría inmutable frente a un administrador de MySQL. La publicación del entorno cloud y el despliegue de producción son pasos distintos de ejecutar estas pruebas.
+
+## Soporte, privacidad y evaluación de uso
+
+El enlace **Soporte y datos** está disponible también antes de iniciar sesión. Explica las categorías de datos, los ejemplos ficticios, las imágenes ilustrativas y las responsabilidades del administrador. Configura `SUPPORT_EMAIL` en `.env` y reinicia el servidor para mostrar un correo de contacto; si está vacío, se indica contactar al administrador. No inventa un canal de atención ni envía mensajes automáticamente. El diagnóstico descargable contiene versión, sección, fecha y tamaño de pantalla, sin registros de negocio ni credenciales.
+
+En `/evaluacion`, un observador puede registrar tareas con participantes reales: resultado, duración, ayudas y dificultades. Exige confirmar un entorno de prueba y autorizar el almacenamiento local. No hay grabación, seguimiento automático ni envío de observaciones al servidor. El observador puede exportar o borrar lo guardado. Consulta [docs/evaluacion-usuarios.md](docs/evaluacion-usuarios.md). No se declaran pruebas con personas realizadas hasta registrar observaciones reales.
+
+La interfaz usa fuentes del sistema, sin peticiones a Google Fonts. La pantalla inicial reserva el espacio de carga y revela la vista completa cuando la sesión y los datos están listos. Las pruebas de experiencia comprueban saltos visuales y registran tiempos de carga de laboratorio; estos no garantizan el rendimiento de otros equipos o redes.

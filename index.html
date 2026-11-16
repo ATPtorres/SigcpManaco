@@ -9,7 +9,8 @@
   <link rel="stylesheet" href="styles.css">
   <script src="app.js" defer></script>
 </head>
-<body class="signed-out">
+<body class="signed-out booting">
+  <div id="startup" role="status" aria-live="polite"><div><div class="eyebrow">SIGCP / MANACO</div><h1>Preparando tu espacio de trabajo</h1><p>Comprobando la sesión y cargando la información…</p></div></div>
   <a class="skip" href="#main">Saltar al contenido</a>
   <button class="menu-backdrop" id="menu-backdrop" tabindex="-1" aria-label="Cerrar navegación" hidden></button>
   <div class="sidebar" id="sidebar" role="complementary">
@@ -23,7 +24,7 @@
   <div class="shell">
     <header class="topbar"><div class="breadcrumb"><button class="icon-button menu-toggle" id="menu-toggle" aria-controls="sidebar" aria-label="Abrir navegación" aria-expanded="false">☰</button><span>Sistema de gestión</span><span class="slash">/</span><strong id="breadcrumb">Vista general</strong></div><div class="top-actions"><button class="btn small" id="refresh-data">Actualizar</button><button class="btn small" id="logout">Salir</button><span class="local-status"><i></i> MySQL</span><button id="notification" class="icon-button" aria-label="Ver alertas"></button><div class="user-avatar">AP</div><div class="user-name">Usuario<small>Acceso al sistema</small></div></div></header>
     <main id="main" tabindex="-1"></main>
-    <footer>MANACO <span>Gestión y control de la producción</span><span>Proyecto académico · ULAT 2026</span></footer>
+    <footer>MANACO <span>Gestión y control de la producción</span><button class="text-link" data-action="support">Soporte y datos</button><span>Proyecto académico · ULAT 2026</span></footer>
   </div>
   <dialog id="modal" aria-labelledby="modal-title"><div class="modal-header"><div><div class="eyebrow">SIGCP / MANACO</div><h2 id="modal-title"></h2></div><button class="icon-button" id="close-modal" aria-label="Cerrar">✕</button></div><div id="modal-content"></div></dialog>
   <div id="toast" role="status" aria-live="polite"></div>

@@ -1068,49 +1068,45 @@ test("Pilot and audit are persisted with the authenticated actor; logout revokes
   assert.equal((await request("/api/state")).status, 401);
 });
 
-test("seed defaults to 1234 and preserves an existing account password", async () => {
-  const previousUser = process.env.APP_USER;
-  const previousPassword = process.env.APP_PASSWORD;
-  const username = "seed-default-test";
+test("New accounts require an explicit strong password; reseeding preserves existing access", async () => {
+  const previousUser = process.env.APP_USER, previousPassword = process.env.APP_PASSWORD;
+  const username = 'seed-secure-test';
   try {
     process.env.APP_USER = username;
+    for (const password of [undefined, '', '1234', '123456789012', 'aaaaaaaaaaaa', 'password1234']) {
+      if (password === undefined) delete process.env.APP_PASSWORD; else process.env.APP_PASSWORD = password;
+      await assert.rejects(seed(pool), /APP_PASSWORD/);
+      const [rows] = await pool.execute('SELECT usuario_id FROM USUARIO WHERE nombre=?',[username]);
+      assert.equal(rows.length,0);
+    }
+    process.env.APP_PASSWORD = 'Frase propia de prueba 984!';
+    await seed(pool);
+    const [before] = await pool.execute('SELECT password_hash FROM USUARIO WHERE nombre=?',[username]);
+    assert.notEqual(before[0].password_hash,process.env.APP_PASSWORD);
+    assert.equal((await request('/api/login',{username,password:process.env.APP_PASSWORD},'POST',false)).status,200);
+    assert.equal((await request('/api/login',{username,password:'1234'},'POST',false)).status,401);
     delete process.env.APP_PASSWORD;
     await seed(pool);
-    const [before] = await pool.execute(
-      "SELECT password_hash FROM USUARIO WHERE nombre=?",
-      [username],
-    );
-    assert.notEqual(before[0].password_hash, "1234");
-    const login = await request(
-      "/api/login",
-      { username, password: "1234" },
-      "POST",
-      false,
-    );
-    assert.equal(login.status, 200);
-    const rejected = await request(
-      "/api/login",
-      { username, password: "incorrecta" },
-      "POST",
-      false,
-    );
-    assert.equal(rejected.status, 401);
-    process.env.APP_PASSWORD = "OtraClaveSegura123";
+    process.env.APP_PASSWORD = '1234';
     await seed(pool);
-    const [after] = await pool.execute(
-      "SELECT password_hash FROM USUARIO WHERE nombre=?",
-      [username],
-    );
-    assert.equal(after[0].password_hash, before[0].password_hash);
+    const [after] = await pool.execute('SELECT password_hash FROM USUARIO WHERE nombre=?',[username]);
+    assert.equal(after[0].password_hash,before[0].password_hash);
   } finally {
-    if (previousUser === undefined) delete process.env.APP_USER;
-    else process.env.APP_USER = previousUser;
-    if (previousPassword === undefined) delete process.env.APP_PASSWORD;
-    else process.env.APP_PASSWORD = previousPassword;
-    await pool.execute(
-      "DELETE s FROM SESION s JOIN USUARIO u USING(usuario_id) WHERE u.nombre=?",
-      [username],
-    );
-    await pool.execute("DELETE FROM USUARIO WHERE nombre=?", [username]);
+    if(previousUser === undefined) delete process.env.APP_USER; else process.env.APP_USER = previousUser;
+    if(previousPassword === undefined) delete process.env.APP_PASSWORD; else process.env.APP_PASSWORD = previousPassword;
+    await pool.execute('DELETE s FROM SESION s JOIN USUARIO u USING(usuario_id) WHERE u.nombre=?',[username]);
+    await pool.execute('DELETE FROM USUARIO WHERE nombre=?',[username]);
   }
+});
+test('Public support configuration exposes no credentials and rejects invalid email values',async()=>{
+  const before = process.env.SUPPORT_EMAIL;
+  try {
+    for (const [email,expected] of [['',null],['invalid\r\nheader',null],['support@example.test','support@example.test']]) {
+      process.env.SUPPORT_EMAIL = email;
+      const response = await request('/api/public-info',null,'GET',false);
+      assert.equal(response.status,200);
+      assert.deepEqual(response.data,{supportEmail:expected});
+    }
+    assert.equal((await fetch(origin+'/evaluacion')).status,200);
+  } finally {if(before===undefined)delete process.env.SUPPORT_EMAIL;else process.env.SUPPORT_EMAIL=before;}
 });

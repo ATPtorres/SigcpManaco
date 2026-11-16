@@ -24,7 +24,7 @@ function createApp(pool) {
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "same-origin",
       "Content-Security-Policy":
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
     });
     if (req.path.startsWith("/api")) res.set("Cache-Control", "no-store");
     if (
@@ -84,6 +84,10 @@ function createApp(pool) {
     );
     res.set("Set-Cookie", auth.cookie(token, 28800));
     res.json({ user: { name: users[0].nombre, role: users[0].rol } });
+  });
+  app.get('/api/public-info', (req,res) => {
+    const email = String(process.env.SUPPORT_EMAIL || '').trim();
+    res.json({supportEmail: require('zod').z.string().email().safeParse(email).success ? email : null});
   });
   app.use("/api", auth.authenticate(pool));
   app.use("/api", require("./users.cjs").authorize);
@@ -326,7 +330,8 @@ function createApp(pool) {
     res.set('Cache-Control','public, max-age=86400').sendFile(path.join(root,'assets/uploads',req.params.file),error=>{if(error&&!res.headersSent)res.status(404).json({error:'Imagen no encontrada.'});});
   });
   for(const manual of ['usuario','tecnico'])app.get('/manuales/'+manual,(req,res)=>res.sendFile(path.join(root,'docs/manual-'+manual+'.html')));
-  for (const file of ["index.html", "app.js", "styles.css"])
+  app.get('/evaluacion', (req,res) => res.sendFile(path.join(root,'evaluation.html')));
+  for (const file of ["index.html", "app.js", "styles.css", "evaluation.js"])
     app.get("/" + file, (req, res) => res.sendFile(path.join(root, file)));
   app.get("/", (req, res) => res.sendFile(path.join(root, "index.html")));
   app.use((error, req, res, next) => {

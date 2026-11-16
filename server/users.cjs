@@ -6,7 +6,7 @@ const userSchema = z
     nombre: z.string().trim().min(1).max(80),
     rol: z.enum(["Administrador", "Operador", "Consulta"]),
     activo: z.boolean(),
-    password: z.string().min(12).max(200).optional(),
+    password: require('./password.cjs').passwordSchema.optional(),
   })
   .strict();
 async function saveUser(c, id, input) {

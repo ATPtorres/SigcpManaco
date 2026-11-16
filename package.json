@@ -11,7 +11,7 @@
     "db:migrate": "node scripts/migrate.cjs",
     "db:seed": "node scripts/seed.cjs",
     "test": "node --test tests/api.test.cjs",
-    "test:interface": "node tests/interface.test.cjs",
+    "test:interface": "node tests/interface.test.cjs && node tests/experience.test.cjs",
     "user:password": "node scripts/set-password.cjs",
     "db:import-legacy": "node scripts/import-legacy.cjs",
     "db:backup": "node scripts/backup.cjs",

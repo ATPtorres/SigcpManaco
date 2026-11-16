@@ -133,7 +133,11 @@ async function loadState() {
   if (!currentUser) currentUser = (await api("/api/session")).user;
   $(".user-name").innerHTML =
     esc(currentUser.name) + "<small>" + esc(currentUser.role) + "</small>";
+  $(".user-avatar").textContent = currentUser.name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase();
+  $(".user-avatar").setAttribute("aria-hidden", "true");
+  $("#refresh-data").title = "Última actualización: " + new Date().toLocaleTimeString("es-BO");
   render();
+  document.body.classList.remove("booting");
 }
 function showLogin() {
   currentUser = null;
@@ -158,9 +162,11 @@ function showLogin() {
       button.disabled = false;
     }
   });
+  document.body.classList.remove("booting");
 }
 async function bootstrap() {
   try {
+    currentUser = (await api("/api/session")).user;
     await loadState();
   } catch (error) {
     if (!$("#login-form")) {
@@ -178,6 +184,11 @@ function toast(message) {
     () => $("#toast").classList.remove("toast-visible"),
     4500,
   );
+}
+async function supportView() {
+  let email = null;
+  try { email = (await api('/api/public-info')).supportEmail; } catch { /* Help remains available offline. */ }
+  showModal('Soporte y uso de los datos', `<div class="support-content"><h3>¿Necesitas ayuda?</h3><p>Consulta primero el <a href="/manuales/usuario" target="_blank" rel="noopener">manual de usuario</a>. Si un problema continúa, informa al administrador de esta instalación${email ? ` en <a href="mailto:${esc(email)}">${esc(email)}</a>` : '. Todavía no se ha configurado un correo de soporte'}.</p><p>Indica la sección, los pasos realizados y el mensaje de error. No envíes contraseñas, respaldos ni datos personales por canales no autorizados.</p><button class="btn" data-action="support-diagnostic">Descargar datos técnicos del problema</button><h3>Qué información utiliza el sistema</h3><p>Se almacenan cuentas y perfiles de acceso, responsables y horas trabajadas, órdenes, materiales, costos, incidencias y el historial de operaciones. La finalidad es planificar y controlar la producción. Los permisos dependen del perfil de cada cuenta.</p><p>Los registros identificados como DEMO, demo o demostración son ejemplos ficticios; los demás deben ser verificados por el administrador. Las imágenes de calzado son ilustraciones del prototipo, no fotografías certificadas del catálogo comercial.</p><h3>Dónde se guarda y quién la administra</h3><p>Los datos de negocio se guardan en la base MySQL de la instalación. El servidor mantiene las sesiones de acceso; el navegador utiliza una cookie de sesión. Los respaldos y exportaciones son responsabilidad del administrador, quien debe definir su conservación y atender las solicitudes de corrección o eliminación según las reglas aplicables.</p><p>La interfaz no carga fuentes de terceros ni incorpora analítica de comportamiento. La evaluación de uso es voluntaria y sus registros se guardan solo en el navegador del observador después de aceptar su almacenamiento. No se envían al servidor.</p><a class="text-link" href="/evaluacion" target="_blank" rel="noopener">Preparar una prueba con usuarios →</a><div class="form-footer"><button class="btn primary" data-action="close">Cerrar</button></div></div>`);
 }
 const product = (id) => db.products.find((p) => p.id === id);
 const lowStock = () =>
@@ -235,6 +246,7 @@ const deadlineAlerts = () =>
           : "sin etapas pendientes") +
         ` · entrega ${date(o.due)}`,
       link: "orders",
+      action: "detail", id: o.id,
       label: "Revisar orden",
     };
   });
@@ -243,6 +255,45 @@ const priority = (p) =>
   `<span class="priority ${p === "Alta" ? "" : "normal"}"><i></i>${esc(p)}</span>`;
 const button = (label, action, ico = "plus", style = "primary") =>
   `<button class="btn ${style}" data-action="${action}">${icon(ico)}${label}</button>`;
+const sectionHelp = {
+  orders: "Crea una orden con producto, pares y responsable. Abre su código para revisar materiales, fechas y el siguiente paso de fabricación.",
+  tracking: "Las columnas muestran el estado de cada orden. Abre Ver orden y sigue la etapa indicada. Para pasar a calidad, termina primero todas las etapas; para cerrar, resuelve sus incidencias y registra la revisión de calidad.",
+  products: "Un modelo es el diseño del zapato; un producto identifica su combinación de talla y color mediante un código SKU. Su ficha de fabricación define las etapas y los materiales necesarios por par.",
+  materials: "Compara las existencias con el mínimo. Usa Movimiento para registrar una entrada o salida real. Las cantidades reservadas ya están comprometidas con otras órdenes.",
+  inventory: "Un lote identifica un grupo de material y su ubicación. Una reserva aparta material para una orden: reduce lo disponible, pero no registra todavía un consumo.",
+  incidents: "Registra el problema, la orden afectada y un responsable. Abre Gestionar para documentar la solución. Una incidencia pendiente impide terminar la orden relacionada.",
+  workers: "Registra responsables y horas trabajadas por etapa. Las horas deben corresponder a fechas reales de producción.",
+  budgets: "Estima materiales, trabajo y otros costos antes de producir. Revisa el detalle del presupuesto para comparar sus componentes.",
+  catalogs: "Mantén los modelos, tallas, colores, unidades y etapas que se eligen en los formularios. Prepara estos datos antes de registrar productos nuevos.",
+  reports: "El período filtra las órdenes por fecha de creación. Aplica ambas fechas o consulta Todo el historial. Puedes exportar los resultados o imprimirlos como PDF.",
+  settings: "Descarga una copia de los datos de negocio o revisa una importación antes de confirmarla. La restauración completa corresponde al administrador.",
+  users: "Elige el perfil según el trabajo de la persona: Administrador configura, Operador registra producción y Consulta revisa información.",
+  project: "Revisa el alcance del proyecto y registra evidencias del piloto. Los indicadores sin medición se muestran como No medido.",
+};
+function enhanceTables(root = $("#main")) {
+  for (const wrap of root.querySelectorAll(".table-wrap")) {
+    wrap.setAttribute("role", "region");
+    if (!wrap.hasAttribute("aria-label")) wrap.setAttribute("aria-label", "Tabla de " + routes[route][0] + ". Desplaza horizontalmente para ver todas las columnas.");
+    for (const th of wrap.querySelectorAll("thead th")) th.scope = "col";
+    if (!wrap.previousElementSibling?.classList.contains("table-hint")) wrap.insertAdjacentHTML("beforebegin", '<p class="table-hint">Desliza la tabla o usa las flechas del teclado para ver más columnas.</p>');
+  }
+}
+function updateResultSummary() {
+  const counter = $("#result-count");
+  if (!counter) return;
+  const count = route === "products" ? $("#results").querySelectorAll(".product-card").length
+    : [...$("#results").querySelectorAll("tbody tr")].filter(row => row.cells.length > 1).length;
+  counter.textContent = `${count} resultado${count === 1 ? "" : "s"}${query || statusFilter ? " con los filtros actuales" : ""}`;
+}
+function workQueue() {
+  const pending = db.orders.filter(o => o.state < 4).sort((a,b) => a.due.localeCompare(b.due)).slice(0,3);
+  return `<section class="task-panel panel" aria-labelledby="task-title"><div class="panel-head"><div><h2 id="task-title">Continúa tu trabajo</h2><p class="panel-subtitle">Órdenes abiertas, con las entregas más próximas primero.</p></div><a class="text-link" href="#tracking">Ver seguimiento →</a></div><div class="task-list">${pending.map(o => {
+    const stage = currentStage(o);
+    const incidents = openIncidents().filter(i => i.order === o.id).length;
+    const next = o.state === 0 ? "Revisar materiales e iniciar producción" : o.state === 1 ? (stage ? `${stage.estado === 'En producción' ? 'Terminar' : 'Iniciar'} ${stage.nombre}` : "Enviar a control de calidad") : o.state === 2 ? (incidents ? `Resolver ${incidents} incidencia${incidents === 1 ? '' : 's'} y registrar calidad` : "Registrar revisión de calidad") : "Registrar despacho";
+    return `<article class="task-row"><div><h3>${esc(o.numero_orden)} · ${esc(product(o.product)?.name)}</h3><p>${esc(next)}</p><small>${states[o.state]} · Entrega ${date(o.due)}</small></div><button class="btn" data-action="detail" data-id="${o.id}" aria-label="Abrir orden ${esc(o.numero_orden)}">Abrir orden ${icon('arrow')}</button></article>`;
+  }).join('') || '<p class="empty">No hay órdenes abiertas. Crea una orden para comenzar a planificar la producción.</p>'}</div><div class="task-shortcuts"><a class="text-link" href="#materials">Consultar materiales →</a><a class="text-link" href="#guide">Aprender el circuito de producción →</a></div></section>`;
+}
 function heading(title, subtitle, actions = "") {
   return `<div class="page-heading"><div><div class="eyebrow">PRODUCCIÓN / ${esc(route === "dashboard" ? "CENTRO DE CONTROL" : routes[route][0].toUpperCase())}</div><h1>${title}</h1><p>${subtitle}</p></div><div class="heading-actions">${actions}</div></div>`;
 }
@@ -254,23 +305,22 @@ function render() {
   if (!routes[route]) route = "dashboard";
   $("#breadcrumb").textContent = routes[route][0];
   document.title = routes[route][0] + " · MANACO";
+  const guideLink = $('#sidebar a[href="#guide"]');
+  if (route === "guide") guideLink.setAttribute("aria-current", "page");
+  else guideLink.removeAttribute("aria-current");
   $(".pilot-label").innerHTML =
     '<span class="live-dot"></span> ' +
     (db.mode === "demo"
       ? "ENTORNO DE DEMOSTRACIÓN"
-      : "DATOS COMPARTIDOS · MYSQL");
-  $(".local-status").innerHTML = "<i></i> MySQL";
-  $("#navigation").innerHTML = Object.entries(routes)
-    .filter(
-      ([key]) =>
-        key !== "guide" &&
-        (key !== "users" || currentUser?.role === "Administrador"),
-    )
-    .map(
-      ([key, [label, ico]]) =>
-        `<a href="#${key}" class="${route === key ? "active " : ""}${key === "project" ? "nav-separator" : ""}" ${route === key ? 'aria-current="page"' : ""}>${icon(ico)}${label}${key === "incidents" && openIncidents().length ? `<span class="nav-count">${openIncidents().length}</span>` : ""}</a>`,
-    )
-    .join("");
+      : "DATOS COMPARTIDOS");
+  $(".local-status").innerHTML = "<i></i> Conectado";
+  $("#navigation").innerHTML = [
+    ["Trabajo diario", ["dashboard", "orders", "tracking", "incidents"]],
+    ["Recursos y planificación", ["products", "materials", "inventory", "workers", "budgets"]],
+    ["Análisis y administración", ["reports", "catalogs", "users", "settings", "project"]],
+  ].map(([title, keys]) => `<div class="nav-group-label">${title}</div>` + keys
+    .filter(key => key !== "users" || currentUser?.role === "Administrador")
+    .map(key => `<a href="#${key}" class="${route === key ? "active" : ""}" ${route === key ? 'aria-current="page"' : ""}>${icon(routes[key][1])}${routes[key][0]}${key === "incidents" && openIncidents().length ? `<span class="nav-count">${openIncidents().length}</span>` : ""}</a>`).join("")).join("");
   const alerts = alertCount();
   $("#notification").innerHTML =
     icon("bell") +
@@ -296,6 +346,19 @@ function render() {
     settings: settingsView,
     guide: guideView,
   }[route]();
+  const help = sectionHelp[route];
+  if (help) $(".page-heading").insertAdjacentHTML("afterend", `<details class="section-help"><summary>Cómo usar esta sección</summary><p>${help}</p><a class="text-link" href="#guide">Consultar la guía y el glosario →</a></details>`);
+  enhanceTables();
+  if (route === "guide") $("#main").insertAdjacentHTML("beforeend", `<section class="panel glossary section-gap" aria-labelledby="glossary-title"><h2 id="glossary-title">Palabras que encontrarás en el sistema</h2><dl>${[
+    ["Modelo", "Diseño del calzado, por ejemplo Escolar clásico."],
+    ["Producto y SKU", "Combinación de modelo, talla y color. El SKU es su código único de identificación."],
+    ["Ficha de fabricación", "Instrucciones de etapas y materiales por par. Cada versión conserva cómo se planificó una orden."],
+    ["Lote y ubicación", "Grupo de material identificado y lugar donde se almacena."],
+    ["Reserva y disponible", "Una reserva aparta material para una orden. Lo disponible son las existencias menos las reservas."],
+    ["Merma", "Material adicional previsto por recortes o pérdidas durante la fabricación."],
+    ["Pares conformes", "Pares que aprobaron la revisión de calidad; pueden diferir de la cantidad planificada."],
+    ["Incidencia", "Problema registrado que debe resolverse antes de terminar la orden."],
+  ].map(([term,meaning]) => `<div><dt>${term}</dt><dd>${meaning}</dd></div>`).join("")}</dl></section>`);
   const registry = { orders: 'orders', materials: 'movements', inventory: 'movements', settings: 'audit' }[route];
   if (registry && (registry !== 'audit' || currentUser?.role === 'Administrador'))
     $('#main').insertAdjacentHTML('beforeend', `<div class="section-gap"><button class="btn" data-action="records" data-id="${registry}">Consultar historial completo por páginas</button></div>`);
@@ -303,6 +366,7 @@ function render() {
   void $("#main").offsetWidth;
   $("#main").classList.add("view-enter");
   applyPermissions($("#main"));
+  updateResultSummary();
 }
 function dashboard() {
   const active = db.orders.filter((o) => o.state < 3),
@@ -314,28 +378,29 @@ function dashboard() {
   return (
     heading(
       "Vista general",
-      "Cada etapa conectada. Cada decisión, con información.",
+      "Consulta lo pendiente y abre una orden para continuar su fabricación.",
       button("Exportar reporte", "export-orders", "down", "") +
         button("Nueva orden", "new-order"),
     ) +
+    workQueue() +
     `<section class="overview-banner"><div><div class="eyebrow">GESTIÓN INDUSTRIAL DE CALZADO</div><h2>El pulso de tu producción.</h2><p>Supervisa órdenes, anticipa faltantes y mantén el trabajo en movimiento.</p></div><div class="banner-side"><div class="banner-date"><span>COCHABAMBA, BOLIVIA</span><strong>${date(today())}</strong></div><svg class="factory-art" viewBox="0 0 120 90" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4 78h111M13 75V37l25 13V30l27 16V13h12l6 62M13 75h94V39L83 50M65 13h12M65 20h13M23 59h8v9h-8zM43 59h8v9h-8zM64 59h8v9h-8zM89 59h8v9h-8zM17 85h90"/><path d="M69 7V3m8 3 3-3"/></svg></div></section>` +
     `<section class="kpis" aria-label="Indicadores de producción">${kpi("Órdenes activas", num(active.length), "órdenes", `<b>${db.orders.filter((o) => o.state === 1).length} en producción</b> · ${db.orders.filter((o) => o.state === 0).length} pendientes`, "orders")}${kpi("Pares conformes medidos", unmeasured.length === done.length && done.length ? "Sin dato" : num(finished), "pares", unmeasured.length ? `${unmeasured.length} cierres heredados sin conteo de calidad` : `${num(total)} pares planificados en total`, "box")}${kpi("Plan cerrado", total ? Math.round((closedPlan / total) * 100) + "%" : "—", "", `${done.length} de ${db.orders.length} órdenes terminadas`, "chart")}${kpi("Requieren atención", alertCount(), "alertas", `<b>${lowStock().length} materiales bajo mínimo</b> · ${openIncidents().length} incidencias · ${deadlineOrders().length} por vencer`, "alert", true)}</section>` +
-    `<div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Producción por modelo</h2><p class="panel-subtitle">Plan y pares conformes medidos</p></div><div class="chart-legend"><span><i class="key"></i>Planificado</span><span><i class="key red"></i>Conformes</span></div></div>${productionChart()}<div class="chart-bottom"><span>${db.mode === "demo" ? "Datos de demostración" : "Datos compartidos"} · Todas las órdenes</span><a class="text-link" href="#reports">Ver análisis ${icon("arrow")}</a></div></section><section class="panel"><div class="panel-head"><div><h2>Centro de atención</h2><p class="panel-subtitle">Lo que necesita una decisión</p></div><span class="tag danger">${alertCount()} alertas</span></div><div class="alert-list">${alertsHTML()}</div><div class="panel-foot"><span>Anticiparse también es producir.</span><a class="text-link" href="#incidents">Ver incidencias →</a></div></section></div>` +
+    `<div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Producción por modelo</h2><p class="panel-subtitle">Hasta 6 modelos con mayor producción planificada</p></div><div class="chart-legend"><span><i class="key"></i>Planificado</span><span><i class="key red"></i>Conformes</span></div></div>${productionChart()}<div class="chart-bottom"><span>${db.mode === "demo" ? "Datos de demostración" : "Datos compartidos"} · Todas las órdenes</span><a class="text-link" href="#reports">Ver análisis ${icon("arrow")}</a></div></section><section class="panel"><div class="panel-head"><div><h2>Centro de atención</h2><p class="panel-subtitle">Lo que necesita una decisión</p></div><span class="tag danger">${alertCount()} alertas</span></div><div class="alert-list">${alertsHTML()}</div><div class="panel-foot"><span>Anticiparse también es producir.</span><a class="text-link" href="#incidents">Ver incidencias →</a></div></section></div>` +
     `<section class="panel"><div class="panel-head table-heading"><div><h2>Órdenes de producción</h2><p class="panel-subtitle">Seguimiento de los lotes más recientes</p></div><a class="text-link" href="#orders">Ver todas las órdenes →</a></div>${orderTable([...db.orders].reverse().slice(0, 5))}</section>`
   );
 }
 function productionChart() {
-  const rows = db.products.slice(0, 6).map((p) => ({
-    name: p.name.split(" ")[0],
+  const rows = db.refs.models.map(model => ({
+    name: model.nombre,
     plan: db.orders
-      .filter((o) => o.product === p.id)
+      .filter((o) => product(o.product)?.modelo_id === model.modelo_id)
       .reduce((a, o) => a + o.quantity, 0),
     done: db.orders
-      .filter((o) => o.product === p.id && o.state >= 3)
+      .filter((o) => product(o.product)?.modelo_id === model.modelo_id && o.state >= 3)
       .reduce((a, o) => a + o.acceptedPairs, 0),
-  }));
+  })).sort((a,b) => b.plan - a.plan).slice(0,6);
   const max = Math.max(100, ...rows.map((r) => r.plan));
-  return `<div class="chart" role="img" aria-label="${esc(rows.map((r) => r.name + ": " + r.plan + " planificados, " + r.done + " finalizados").join(". "))}"><div class="axis"><span>${num(max)}</span><span>${num(Math.round((max * 2) / 3))}</span><span>${num(Math.round(max / 3))}</span><span>0</span></div><div class="bar-area">${rows.map((r) => `<div class="bar-column" title="${esc(r.name)}: ${r.plan} planificados / ${r.done} finalizados"><div class="bar" style="--height:${(r.plan / max) * 100}%"></div><div class="bar actual" style="--height:${(r.done / max) * 100}%"></div><span class="bar-label">${esc(r.name)}</span></div>`).join("")}</div></div>`;
+  return `<div class="model-chart" role="img" aria-label="${esc(rows.map(r => `${r.name}: ${r.plan} planificados, ${r.done} conformes`).join(". "))}">${rows.map(r => `<div class="model-chart-row"><div class="model-chart-label"><strong>${esc(r.name)}</strong><span>${num(r.plan)} / ${num(r.done)} pares</span></div><div class="model-chart-track"><span style="width:${r.plan/max*100}%"></span></div><div class="model-chart-track actual"><span style="width:${r.done/max*100}%"></span></div></div>`).join("") || '<p class="empty">Registra modelos y órdenes para consultar su producción.</p>'}</div>`;
 }
 function alertsHTML() {
   const items = [
@@ -344,12 +409,14 @@ function alertsHTML() {
       title: m.name,
       text: `${num(m.stock)} ${m.unit} disponibles · mínimo ${num(m.min)}`,
       link: "materials",
+      action: "stock", id: m.id,
       label: "Revisar existencias",
     })),
     ...openIncidents().map((i) => ({
       title: i.type,
       text: i.order + " · " + i.status,
       link: "incidents",
+      action: "edit-incident", id: i.id,
       label: "Revisar incidencia",
     })),
   ].slice(0, 3);
@@ -357,16 +424,16 @@ function alertsHTML() {
     ? items
         .map(
           (a) =>
-            `<div class="alert-item"><div class="alert-icon">${icon("alert")}</div><div><h3>${esc(a.title)}</h3><p>${esc(a.text)}</p><a class="text-link" href="#${a.link}">${a.label} →</a></div></div>`,
+            `<div class="alert-item"><div class="alert-icon">${icon("alert")}</div><div><h3>${esc(a.title)}</h3><p>${esc(a.text)}</p>${a.action && canAct(a.action) ? `<button class="text-link" data-action="${a.action}" data-id="${esc(a.id)}">${a.label} →</button>` : `<a class="text-link" href="#${a.link}">${a.label} →</a>`}</div></div>`,
         )
         .join("")
     : '<div class="empty">Sin alertas pendientes.</div>';
 }
 function orderTable(orders) {
-  return `<div class="table-wrap" tabindex="0"><table><thead><tr><th>ORDEN / PRODUCTO</th><th>CANTIDAD</th><th>ESTADO</th><th>AVANCE</th><th>ENTREGA</th><th>PRIORIDAD</th><th scope="col">Acciones</th></tr></thead><tbody>${orders.map((o) => `<tr><td><button class="order-id" data-action="detail" data-id="${o.id}">${esc(o.numero_orden)}</button><small>${esc(product(o.product)?.name)} · T${esc(o.size)}</small></td><td><strong>${num(o.quantity)}</strong> pares</td><td>${badge(o.state)}</td><td><span class="progress"><span style="width:${o.state * 25}%"></span></span><span class="progress-num">${o.state * 25}%</span></td><td>${date(o.due)}${dueNote(o)}</td><td>${priority(o.priority)}</td><td><button class="icon-button" data-action="detail" data-id="${o.id}" aria-label="Ver ${esc(o.numero_orden)}">${icon("arrow")}</button></td></tr>`).join("") || '<tr><td colspan="7"><div class="empty">No hay órdenes para esta búsqueda.</div></td></tr>'}</tbody></table></div>`;
+  return `<div class="table-wrap" tabindex="0"><table><thead><tr><th>ORDEN / PRODUCTO</th><th>CANTIDAD</th><th>ESTADO</th><th>AVANCE</th><th>ENTREGA</th><th>PRIORIDAD</th><th scope="col">Acciones</th></tr></thead><tbody>${orders.map((o) => `<tr><td><button class="order-id" data-action="detail" data-id="${o.id}">${esc(o.numero_orden)}</button><small>${esc(product(o.product)?.name)}</small></td><td><strong>${num(o.quantity)}</strong> pares</td><td>${badge(o.state)}</td><td><span class="progress"><span style="width:${o.state * 25}%"></span></span><span class="progress-num">${o.state * 25}%</span></td><td>${date(o.due)}${dueNote(o)}</td><td>${priority(o.priority)}</td><td><button class="icon-button" data-action="detail" data-id="${o.id}" aria-label="Ver ${esc(o.numero_orden)}">${icon("arrow")}</button></td></tr>`).join("") || '<tr><td colspan="7"><div class="empty">No hay órdenes para esta búsqueda.</div></td></tr>'}</tbody></table></div>`;
 }
 function toolbar(placeholder, options = []) {
-  return `<div class="toolbar"><label class="search-box">${icon("search")}<input id="search" type="search" value="${esc(query)}" placeholder="${placeholder}" aria-label="${placeholder}"></label><div class="filters">${options.length ? `<select id="status-filter" aria-label="Filtrar registros"><option value="">Todos los registros</option>${options.map((v, i) => `<option value="${esc(v)}" ${statusFilter === v ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>` : ""}<span class="result-count" id="result-count"></span></div></div>`;
+  return `<div class="toolbar"><label class="search-box">${icon("search")}<input id="search" type="search" value="${esc(query)}" placeholder="${placeholder}" aria-label="${placeholder}"></label><div class="filters">${options.length ? `<select id="status-filter" aria-label="Filtrar registros"><option value="">Todos los registros</option>${options.map((v, i) => `<option value="${esc(v)}" ${statusFilter === v ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>` : ""}<button class="text-link" id="clear-search" data-action="clear-search" ${!query && !statusFilter ? "hidden" : ""}>Limpiar filtros</button><span class="result-count" id="result-count" role="status" aria-live="polite" aria-atomic="true"></span></div></div>`;
 }
 const matches = (...values) =>
   values.join(" ").toLocaleLowerCase().includes(query.toLocaleLowerCase());
@@ -572,6 +639,7 @@ function projectView() {
     heading(
       "Proyecto y piloto",
       "Marco de implementación y criterios de aceptación del informe.",
+      '<a class="btn" href="/evaluacion" target="_blank" rel="noopener">Evaluar con usuarios</a>',
     ) +
     `<div class="note">Propuesta académica · ULAT 2026. El presupuesto es referencial y requiere validación con MANACO. Esta lista registra evidencias; no sustituye la aprobación del comité responsable.</div><div class="guide-grid">${[
       [
@@ -666,6 +734,7 @@ function showModal(title, html) {
   $("#modal-content").innerHTML = html;
   $("#modal").showModal();
   applyPermissions($("#modal"));
+  enhanceTables($("#modal"));
 }
 function closeModal() {
   $("#modal").close();
@@ -691,7 +760,7 @@ const selectField = (label, name, values, current = "", full = false, required =
 const textarea = (label, name, value = "", required = true) =>
   `<label class="field full">${label}<textarea name="${name}" maxlength="1000" ${required ? "required" : ""}>${esc(value)}</textarea></label>`;
 function formHTML(content, label = "Guardar registro") {
-  return `<form id="record-form"><div class="form-grid">${content}</div><div class="form-error" id="form-error" role="alert"></div><div class="form-footer"><button type="button" class="btn" data-action="close">Cancelar</button><button class="btn primary" type="submit">${label} ${icon("check")}</button></div></form>`;
+  return `<form id="record-form"><p class="form-instructions">Revisa los datos antes de guardar. Si hay un error, podrás corregirlo sin perder lo escrito.</p><div class="form-grid">${content}</div><div class="form-error" id="form-error" role="alert" tabindex="-1"></div><div class="form-footer"><button type="button" class="btn" data-action="close">Cancelar</button><span class="save-status" role="status"></span><button class="btn primary" type="submit">${label} ${icon("check")}</button></div></form>`;
 }
 function bindForm(handler) {
   $("#record-form").addEventListener("submit", async (e) => {
@@ -699,13 +768,20 @@ function bindForm(handler) {
     const form = e.target,
       submit = form.querySelector("[type=submit]");
     submit.disabled = true;
+    form.setAttribute("aria-busy", "true");
+    form.querySelector(".save-status").textContent = "Guardando…";
     $("#form-error").textContent = "";
     try {
       await handler(Object.fromEntries(new FormData(form)));
     } catch (error) {
-      if ($("#form-error")) $("#form-error").textContent = error.message;
+      if ($("#form-error")) {
+        $("#form-error").textContent = "No se guardó el registro. " + error.message;
+        $("#form-error").focus();
+      }
     } finally {
       submit.disabled = false;
+      form.removeAttribute("aria-busy");
+      form.querySelector(".save-status").textContent = "";
     }
   });
 }
@@ -1820,6 +1896,15 @@ document.addEventListener("click", async (event) => {
   const action = el.dataset.action,
     id = el.dataset.id;
   const handlers = {
+    support: supportView,
+    'support-diagnostic': () => download('diagnostico-manaco.json', JSON.stringify({fecha:new Date().toISOString(),version:'2.0.0',seccion:currentUser ? route : 'acceso',pantalla:{ancho:innerWidth,alto:innerHeight},conexion:navigator.onLine?'Disponible según el navegador':'Sin conexión según el navegador',pasos:'Describe los pasos y el mensaje de error antes de compartir este archivo.'}, null, 2), 'application/json'),
+    'clear-search': () => {
+      query = ""; statusFilter = "";
+      $("#search").value = "";
+      if ($("#status-filter")) $("#status-filter").value = "";
+      updateResults();
+      $("#search").focus();
+    },
     'continue-stage': () => continueStage(id),
     'order-plan': () => orderPlanForm(id),
     'stage-plan': () => stagePlanForm(id),
@@ -1935,6 +2020,9 @@ function updateResults() {
   if (html) {
     $("#results").innerHTML = html();
     applyPermissions($("#results"));
+    enhanceTables($("#results"));
+    $("#clear-search").hidden = !query && !statusFilter;
+    updateResultSummary();
   }
 }
 document.addEventListener("input", (e) => {
@@ -2041,10 +2129,15 @@ $(".skip").onclick = (e) => {
   e.preventDefault();
   $("#main").focus();
 };
-$("#refresh-data").onclick = () =>
-  loadState()
-    .then(() => toast("Datos actualizados."))
-    .catch((e) => toast(e.message));
+$("#refresh-data").onclick = async () => {
+  const button = $("#refresh-data");
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  button.textContent = "Actualizando…";
+  try { await loadState(); toast("Datos actualizados. Puedes continuar con tu trabajo."); }
+  catch (error) { toast("No se pudieron actualizar los datos. " + error.message + " Intenta de nuevo con Actualizar."); }
+  finally { button.disabled = false; button.removeAttribute("aria-busy"); button.textContent = "Actualizar"; }
+};
 $("#logout").onclick = async () => {
   try {
     await api("/api/logout", { method: "POST", body: "{}" });
@@ -2137,6 +2230,8 @@ function confirmLegacy() {
 function canAct(action) {
   if (currentUser?.role === "Administrador") return true;
   const read = [
+    'support', 'support-diagnostic',
+    'clear-search',
     'records', 'records-prev', 'records-next',
     "detail",
     "ficha-detail",

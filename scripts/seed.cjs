@@ -2,10 +2,6 @@ const { createPool, transaction } = require("../server/db.cjs");
 const { hashPassword } = require("../server/auth.cjs");
 const s = require("../server/service.cjs");
 async function seed(pool) {
-  const password = process.env.APP_PASSWORD || "1234";
-  if (password.length < 4)
-    throw Error("APP_PASSWORD debe tener al menos 4 caracteres.");
-  const hash = await hashPassword(password);
   await transaction(pool, async (c) => {
     const user = process.env.APP_USER || "admin";
     const existing = await s.rows(
@@ -13,12 +9,14 @@ async function seed(pool) {
       "SELECT usuario_id FROM USUARIO WHERE nombre=?",
       [user],
     );
-    if (!existing.length)
+    if (!existing.length) {
+      const password = require('../server/password.cjs').initialPassword(process.env.APP_PASSWORD);
       await s.insert(c, "USUARIO", {
         nombre: user,
-        password_hash: hash,
+        password_hash: await hashPassword(password),
         rol: "Administrador",
       });
+    }
     for (const [nombre, simbolo] of [
       ["Metro cuadrado", "m²"],
       ["Par", "pares"],

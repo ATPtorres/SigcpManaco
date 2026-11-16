@@ -1,11 +1,10 @@
 const { createPool, transaction } = require("../server/db.cjs");
 const { hashPassword } = require("../server/auth.cjs");
 (async () => {
-  if (!process.env.APP_PASSWORD || process.env.APP_PASSWORD.length < 4)
-    throw Error("APP_PASSWORD debe tener al menos 4 caracteres.");
+  const password = require('../server/password.cjs').initialPassword(process.env.APP_PASSWORD);
   const pool = createPool();
   try {
-    const hash = await hashPassword(process.env.APP_PASSWORD);
+    const hash = await hashPassword(password);
     await transaction(pool, async (c) => {
       const [users] = await c.execute(
         "SELECT usuario_id FROM USUARIO WHERE nombre=? FOR UPDATE",
